@@ -37,6 +37,7 @@ struct ComposeView: View {
     @State private var accomplishmentText = ""
     @State private var showEncouragement = false
     @State private var currentEncouragement = ""
+    @State private var dismissTask: Task<Void, Never>?
 
     private let encouragements = [
         "You're more alive than you think.",
@@ -80,13 +81,6 @@ struct ComposeView: View {
                         .background(Color("CardBackground"))
                         .cornerRadius(16)
                         .lineLimit(3...6)
-                        .onChange(of: accomplishmentText) {
-                            if showEncouragement {
-                                withAnimation(.easeOut(duration: 0.2)) {
-                                    showEncouragement = false
-                                }
-                            }
-                        }
 
                     Button(action: saveAccomplishment) {
                         Text("Save")
@@ -106,20 +100,20 @@ struct ComposeView: View {
                 .padding(.horizontal, 32)
 
                 Spacer()
-                    .frame(height: 48)
+            }
 
-                if showEncouragement {
-                    Text(currentEncouragement)
-                        .font(.system(size: 19, weight: .regular, design: .rounded))
-                        .foregroundColor(Color("TextPrimary"))
-                        .multilineTextAlignment(.center)
-                        .padding(.horizontal, 40)
-                        .transition(.opacity.combined(with: .scale(scale: 0.95)))
+            // Encouragement overlay
+            if showEncouragement {
+                EncouragementOverlay(
+                    message: currentEncouragement,
+                    isPresented: $showEncouragement
+                )
+                .onTapGesture {
+                    dismissOverlay()
                 }
-
-                Spacer()
             }
         }
+        .animation(.easeInOut(duration: 0.35), value: showEncouragement)
     }
 
     private func saveAccomplishment() {
@@ -131,16 +125,83 @@ struct ComposeView: View {
 
         accomplishmentText = ""
         currentEncouragement = encouragements.randomElement() ?? encouragements[0]
-
-        withAnimation(.easeInOut(duration: 0.4)) {
-            showEncouragement = true
-        }
+        showEncouragement = true
 
         UIImpactFeedbackGenerator(style: .light).impactOccurred()
+
+        // Cancel any existing dismiss task
+        dismissTask?.cancel()
+
+        // Auto-dismiss after 3 seconds
+        dismissTask = Task {
+            try? await Task.sleep(for: .seconds(3))
+            if !Task.isCancelled {
+                await MainActor.run {
+                    dismissOverlay()
+                }
+            }
+        }
+    }
+
+    private func dismissOverlay() {
+        dismissTask?.cancel()
+        showEncouragement = false
+    }
+}
+
+struct EncouragementOverlay: View {
+    let message: String
+    @Binding var isPresented: Bool
+
+    var body: some View {
+        ZStack {
+            // Soft dimmed background
+            Color.black.opacity(0.08)
+                .ignoresSafeArea()
+                .transition(.opacity)
+
+            // Card
+            VStack(spacing: 20) {
+                Image(systemName: "sparkle")
+                    .font(.system(size: 28, weight: .light))
+                    .foregroundColor(Color("ButtonPrimary").opacity(0.8))
+
+                Text(message)
+                    .font(.system(size: 19, weight: .regular, design: .rounded))
+                    .foregroundColor(Color("TextPrimary"))
+                    .multilineTextAlignment(.center)
+                    .lineSpacing(4)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .padding(.horizontal, 32)
+            .padding(.vertical, 36)
+            .frame(maxWidth: 300)
+            .background(
+                RoundedRectangle(cornerRadius: 24)
+                    .fill(Color("CardBackground"))
+                    .shadow(color: Color.black.opacity(0.06), radius: 20, x: 0, y: 8)
+            )
+            .transition(
+                .opacity
+                .combined(with: .scale(scale: 0.92))
+            )
+        }
     }
 }
 
 #Preview {
     ContentView()
         .modelContainer(for: Accomplishment.self, inMemory: true)
+}
+
+#Preview("Overlay") {
+    ZStack {
+        Color("Background")
+            .ignoresSafeArea()
+
+        EncouragementOverlay(
+            message: "You're more alive than you think.",
+            isPresented: .constant(true)
+        )
+    }
 }
