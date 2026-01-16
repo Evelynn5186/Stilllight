@@ -34,29 +34,29 @@ struct ContentView: View {
 
 struct ComposeView: View {
     @Environment(\.modelContext) private var modelContext
+    @Query private var accomplishments: [Accomplishment]
     @State private var accomplishmentText = ""
     @State private var showEncouragement = false
     @State private var currentEncouragement = ""
     @State private var currentPlaceholder = ""
     @State private var dismissTask: Task<Void, Never>?
+    @State private var showGlimmer = false
+    @State private var selectedGlimmer: Accomplishment?
 
     private let placeholders = [
-        "Did you drink water today?",
-        "Did you see a nice cloud?",
-        "Did you put your phone down for a bit?",
-        "Did you step outside?",
-        "Did you eat something you liked?",
-        "Did you stretch a little?",
-        "Did you take a deep breath?",
-        "Did you notice something beautiful?",
-        "Did you rest for a moment?",
-        "Did you feel the sun today?",
-        "Did you listen to a song you love?",
-        "Did you sit somewhere comfortable?",
-        "Did you look out a window?",
-        "Did you wash your face?",
-        "Did you make your bed?",
-        "Did you say something kind to yourself?"
+        "One tiny thing you did for yourself today...",
+        "What made today 1% better?",
+        "A small moment that wasn't bad...",
+        "Something you noticed today...",
+        "One thing that went okay...",
+        "A quiet moment you had...",
+        "Something small you managed...",
+        "What's one thing you didn't hate today?",
+        "A little thing that happened...",
+        "Something you got through...",
+        "One gentle thing from today...",
+        "A moment you can hold onto...",
+        "Something that felt like enough..."
     ]
 
     private let encouragements = [
@@ -123,6 +123,12 @@ struct ComposeView: View {
                 .padding(.horizontal, 32)
 
                 Spacer()
+
+                // Catch a Glimmer button
+                CatchGlimmerButton {
+                    catchGlimmer()
+                }
+                .padding(.bottom, 32)
             }
 
             // Encouragement overlay
@@ -135,8 +141,20 @@ struct ComposeView: View {
                     dismissOverlay()
                 }
             }
+
+            // Glimmer overlay
+            if showGlimmer {
+                GlimmerOverlay(
+                    accomplishment: selectedGlimmer,
+                    isPresented: $showGlimmer
+                )
+                .onTapGesture {
+                    showGlimmer = false
+                }
+            }
         }
         .animation(.easeInOut(duration: 0.35), value: showEncouragement)
+        .animation(.easeInOut(duration: 0.35), value: showGlimmer)
         .onAppear {
             currentPlaceholder = placeholders.randomElement() ?? placeholders[0]
         }
@@ -173,7 +191,149 @@ struct ComposeView: View {
         dismissTask?.cancel()
         showEncouragement = false
     }
+
+    private func catchGlimmer() {
+        if accomplishments.isEmpty {
+            selectedGlimmer = nil
+        } else {
+            selectedGlimmer = accomplishments.randomElement()
+        }
+        showGlimmer = true
+        UIImpactFeedbackGenerator(style: .soft).impactOccurred()
+    }
 }
+
+// MARK: - Catch Glimmer Button
+
+struct CatchGlimmerButton: View {
+    let action: () -> Void
+    @State private var glowOpacity: Double = 0.3
+    @State private var glowScale: CGFloat = 0.95
+
+    var body: some View {
+        Button(action: action) {
+            ZStack {
+                // Outer glow layers
+                Capsule()
+                    .fill(Color("ButtonPrimary").opacity(0.15))
+                    .frame(width: 180, height: 52)
+                    .scaleEffect(glowScale + 0.15)
+                    .opacity(glowOpacity * 0.5)
+
+                Capsule()
+                    .fill(Color("ButtonPrimary").opacity(0.2))
+                    .frame(width: 170, height: 48)
+                    .scaleEffect(glowScale + 0.08)
+                    .opacity(glowOpacity * 0.7)
+
+                // Button
+                HStack(spacing: 8) {
+                    Image(systemName: "sparkles")
+                        .font(.system(size: 15, weight: .medium))
+                    Text("捞取微光")
+                        .font(.system(size: 15, weight: .medium, design: .rounded))
+                }
+                .foregroundColor(Color("ButtonPrimary"))
+                .padding(.horizontal, 24)
+                .padding(.vertical, 14)
+                .background(
+                    Capsule()
+                        .fill(Color("CardBackground"))
+                        .shadow(color: Color("ButtonPrimary").opacity(0.15), radius: 12, x: 0, y: 4)
+                )
+                .overlay(
+                    Capsule()
+                        .stroke(Color("ButtonPrimary").opacity(0.25), lineWidth: 1)
+                )
+            }
+        }
+        .buttonStyle(.plain)
+        .onAppear {
+            withAnimation(
+                .easeInOut(duration: 5.5)
+                .repeatForever(autoreverses: true)
+            ) {
+                glowOpacity = 0.8
+                glowScale = 1.1
+            }
+        }
+    }
+}
+
+// MARK: - Glimmer Overlay
+
+struct GlimmerOverlay: View {
+    let accomplishment: Accomplishment?
+    @Binding var isPresented: Bool
+
+    var body: some View {
+        ZStack {
+            // Soft dimmed background
+            Color.black.opacity(0.08)
+                .ignoresSafeArea()
+                .transition(.opacity)
+
+            // Card
+            VStack(spacing: 16) {
+                Image(systemName: "sparkles")
+                    .font(.system(size: 26, weight: .light))
+                    .foregroundColor(Color("ButtonPrimary").opacity(0.8))
+                    .padding(.bottom, 4)
+
+                if let accomplishment = accomplishment {
+                    Text(accomplishment.text)
+                        .font(.system(size: 18, weight: .regular, design: .rounded))
+                        .foregroundColor(Color("TextPrimary"))
+                        .multilineTextAlignment(.center)
+                        .lineSpacing(4)
+                        .fixedSize(horizontal: false, vertical: true)
+
+                    Text(formattedDate(accomplishment.createdAt))
+                        .font(.system(size: 14, weight: .regular, design: .rounded))
+                        .foregroundColor(Color("TextSecondary"))
+                        .padding(.top, 4)
+                } else {
+                    Text("Keep collecting glimmers,\nthey'll be here waiting for you.")
+                        .font(.system(size: 17, weight: .regular, design: .rounded))
+                        .foregroundColor(Color("TextSecondary"))
+                        .multilineTextAlignment(.center)
+                        .lineSpacing(4)
+                }
+            }
+            .padding(.horizontal, 32)
+            .padding(.vertical, 36)
+            .frame(maxWidth: 300)
+            .background(
+                RoundedRectangle(cornerRadius: 24)
+                    .fill(Color("CardBackground"))
+                    .shadow(color: Color.black.opacity(0.06), radius: 20, x: 0, y: 8)
+            )
+            .transition(
+                .opacity
+                .combined(with: .scale(scale: 0.92))
+            )
+        }
+    }
+
+    private func formattedDate(_ date: Date) -> String {
+        let formatter = DateFormatter()
+        let calendar = Calendar.current
+
+        if calendar.isDateInToday(date) {
+            formatter.dateFormat = "'Today at' h:mm a"
+        } else if calendar.isDateInYesterday(date) {
+            formatter.dateFormat = "'Yesterday at' h:mm a"
+        } else if calendar.isDate(date, equalTo: Date(), toGranularity: .year) {
+            formatter.dateFormat = "MMM d 'at' h:mm a"
+        } else {
+            formatter.dateFormat = "MMM d, yyyy"
+        }
+
+        return formatter.string(from: date)
+    }
+}
+
+// MARK: - Breathing Circle
 
 struct BreathingCircle: View {
     @State private var scale: CGFloat = 0.85
@@ -208,6 +368,8 @@ struct BreathingCircle: View {
             }
     }
 }
+
+// MARK: - Encouragement Overlay
 
 struct EncouragementOverlay: View {
     let message: String
@@ -249,6 +411,8 @@ struct EncouragementOverlay: View {
     }
 }
 
+// MARK: - Previews
+
 #Preview {
     ContentView()
         .modelContainer(for: Accomplishment.self, inMemory: true)
@@ -263,5 +427,16 @@ struct EncouragementOverlay: View {
             message: "You're more alive than you think.",
             isPresented: .constant(true)
         )
+    }
+}
+
+#Preview("Catch Glimmer Button") {
+    ZStack {
+        Color("Background")
+            .ignoresSafeArea()
+
+        CatchGlimmerButton {
+            print("Caught!")
+        }
     }
 }
