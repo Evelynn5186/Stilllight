@@ -37,7 +37,27 @@ struct ComposeView: View {
     @State private var accomplishmentText = ""
     @State private var showEncouragement = false
     @State private var currentEncouragement = ""
+    @State private var currentPlaceholder = ""
     @State private var dismissTask: Task<Void, Never>?
+
+    private let placeholders = [
+        "Did you drink water today?",
+        "Did you see a nice cloud?",
+        "Did you put your phone down for a bit?",
+        "Did you step outside?",
+        "Did you eat something you liked?",
+        "Did you stretch a little?",
+        "Did you take a deep breath?",
+        "Did you notice something beautiful?",
+        "Did you rest for a moment?",
+        "Did you feel the sun today?",
+        "Did you listen to a song you love?",
+        "Did you sit somewhere comfortable?",
+        "Did you look out a window?",
+        "Did you wash your face?",
+        "Did you make your bed?",
+        "Did you say something kind to yourself?"
+    ]
 
     private let encouragements = [
         "You're more alive than you think.",
@@ -59,6 +79,9 @@ struct ComposeView: View {
             Color("Background")
                 .ignoresSafeArea()
 
+            // Breathing circle
+            BreathingCircle()
+
             VStack(spacing: 0) {
                 Spacer()
                     .frame(height: 60)
@@ -74,7 +97,7 @@ struct ComposeView: View {
                     .padding(.bottom, 48)
 
                 VStack(spacing: 24) {
-                    TextField("I...", text: $accomplishmentText, axis: .vertical)
+                    TextField(currentPlaceholder, text: $accomplishmentText, axis: .vertical)
                         .font(.system(size: 18, weight: .regular, design: .rounded))
                         .foregroundColor(Color("TextPrimary"))
                         .padding(20)
@@ -114,6 +137,9 @@ struct ComposeView: View {
             }
         }
         .animation(.easeInOut(duration: 0.35), value: showEncouragement)
+        .onAppear {
+            currentPlaceholder = placeholders.randomElement() ?? placeholders[0]
+        }
     }
 
     private func saveAccomplishment() {
@@ -146,6 +172,40 @@ struct ComposeView: View {
     private func dismissOverlay() {
         dismissTask?.cancel()
         showEncouragement = false
+    }
+}
+
+struct BreathingCircle: View {
+    @State private var scale: CGFloat = 0.85
+    @State private var opacity: Double = 0.3
+
+    var body: some View {
+        Circle()
+            .fill(
+                RadialGradient(
+                    gradient: Gradient(colors: [
+                        Color("ButtonPrimary").opacity(0.15),
+                        Color("ButtonPrimary").opacity(0.05),
+                        Color.clear
+                    ]),
+                    center: .center,
+                    startRadius: 0,
+                    endRadius: 180
+                )
+            )
+            .frame(width: 320, height: 320)
+            .scaleEffect(scale)
+            .opacity(opacity)
+            .offset(y: -50)
+            .onAppear {
+                withAnimation(
+                    .easeInOut(duration: 5.5)
+                    .repeatForever(autoreverses: true)
+                ) {
+                    scale = 1.2
+                    opacity = 0.7
+                }
+            }
     }
 }
 
