@@ -1,5 +1,6 @@
 import SwiftUI
 import SwiftData
+import Speech
 
 struct ContentView: View {
     @State private var selectedTab = 0
@@ -42,6 +43,8 @@ struct ComposeView: View {
     @State private var dismissTask: Task<Void, Never>?
     @State private var showGlimmer = false
     @State private var selectedGlimmer: Accomplishment?
+    @StateObject private var speechRecognizer = SpeechRecognizer()
+    @State private var hasSpeechPermission = false
 
     private let placeholders = [
         "One tiny thing you did for yourself today...",
@@ -97,13 +100,38 @@ struct ComposeView: View {
                     .padding(.bottom, 48)
 
                 VStack(spacing: 24) {
-                    TextField(currentPlaceholder, text: $accomplishmentText, axis: .vertical)
-                        .font(.system(size: 18, weight: .regular, design: .rounded))
-                        .foregroundColor(Color("TextPrimary"))
-                        .padding(20)
-                        .background(Color("CardBackground"))
-                        .cornerRadius(16)
-                        .lineLimit(3...6)
+                    // Text input with microphone button
+                    HStack(alignment: .bottom, spacing: 12) {
+                        TextField(currentPlaceholder, text: $accomplishmentText, axis: .vertical)
+                            .font(.system(size: 18, weight: .regular, design: .rounded))
+                            .foregroundColor(Color("TextPrimary"))
+                            .padding(20)
+                            .background(Color("CardBackground"))
+                            .cornerRadius(16)
+                            .lineLimit(3...6)
+                            .onChange(of: speechRecognizer.transcript) {
+                                if !speechRecognizer.transcript.isEmpty {
+                                    accomplishmentText = speechRecognizer.transcript
+                                }
+                            }
+
+                        // Microphone button
+                        Button(action: toggleRecording) {
+                            Image(systemName: speechRecognizer.isRecording ? "mic.fill" : "mic")
+                                .font(.system(size: 20, weight: .medium))
+                                .foregroundColor(speechRecognizer.isRecording ? .white : Color("ButtonPrimary"))
+                                .frame(width: 52, height: 52)
+                                .background(
+                                    Circle()
+                                        .fill(speechRecognizer.isRecording ? Color("ButtonPrimary") : Color("CardBackground"))
+                                )
+                                .overlay(
+                                    Circle()
+                                        .stroke(Color("ButtonPrimary").opacity(speechRecognizer.isRecording ? 0 : 0.3), lineWidth: 1)
+                                )
+                        }
+                        .animation(.easeInOut(duration: 0.2), value: speechRecognizer.isRecording)
+                    }
 
                     Button(action: saveAccomplishment) {
                         Text("Save")
@@ -158,6 +186,18 @@ struct ComposeView: View {
         .onAppear {
             currentPlaceholder = placeholders.randomElement() ?? placeholders[0]
         }
+        .task {
+            hasSpeechPermission = await speechRecognizer.requestAuthorization()
+        }
+    }
+
+    private func toggleRecording() {
+        if speechRecognizer.isRecording {
+            speechRecognizer.stopTranscribing()
+        } else {
+            speechRecognizer.startTranscribing()
+        }
+        UIImpactFeedbackGenerator(style: .light).impactOccurred()
     }
 
     private func saveAccomplishment() {
