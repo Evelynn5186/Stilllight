@@ -1,5 +1,6 @@
 import SwiftUI
 import SwiftData
+import Speech
 
 struct HomeView: View {
     @Environment(\.modelContext) private var modelContext
@@ -9,9 +10,21 @@ struct HomeView: View {
     @State private var showGlimmerInput = false
     @State private var showGlimmerOverlay = false
     @State private var selectedGlimmer: Accomplishment?
+    @State private var breathGlow: CGFloat = 0
+    @State private var isOrbPressed = false
+
+    // Inline input form state
+    @State private var glimmerText = ""
+    @State private var selectedMood: Mood?
+    @State private var showMoreMoods = false
+    @State private var showEncouragement = false
+    @StateObject private var speechRecognizer = SpeechRecognizer()
+    @FocusState private var isTextFieldFocused: Bool
+    private let maxCharacters = 300
 
     // Theme brown color from Figma
     private let themeBrown = Color(red: 0.325, green: 0.212, blue: 0.188)
+    private let borderColor = Color(red: 0.839, green: 0.827, blue: 0.820)
 
     /// Days since last check-in
     private var daysSinceLastCheckIn: Int {
@@ -55,36 +68,50 @@ struct HomeView: View {
                     endPoint: .bottom
                 )
                 .ignoresSafeArea()
-            } else if hasCheckedInToday {
-                // Warm cream/yellow gradient background when checked in
+            } else if hasCheckedInToday || showGlimmerInput {
+                // Warm cream/yellow gradient for checked-in and input mode
                 LinearGradient(
-                    colors: [
-                        Color(red: 0.976, green: 0.929, blue: 0.757),
-                        Color(red: 0.980, green: 0.929, blue: 0.757)
+                    stops: [
+                        .init(color: Color(red: 0.976, green: 0.929, blue: 0.757), location: 0.32),
+                        .init(color: Color(red: 0.980, green: 0.929, blue: 0.757), location: 0.80)
                     ],
                     startPoint: .top,
                     endPoint: .bottom
                 )
                 .ignoresSafeArea()
             } else {
-                // Dark gradient background when not checked in
-                LinearGradient(
-                    stops: [
-                        .init(color: Color(red: 0.067, green: 0.086, blue: 0.110), location: 0.37),
-                        .init(color: Color(red: 0.173, green: 0.231, blue: 0.278), location: 0.66),
-                        .init(color: Color(red: 0.176, green: 0.239, blue: 0.290), location: 0.85)
-                    ],
-                    startPoint: UnitPoint(x: 0.3, y: 0.0),
-                    endPoint: UnitPoint(x: 0.7, y: 1.0)
-                )
+                // Dark gradient (ball off)
+                ZStack {
+                    LinearGradient(
+                        stops: [
+                            .init(color: Color(red: 0.07, green: 0.09, blue: 0.11), location: 0.00),
+                            .init(color: Color(red: 0.17, green: 0.23, blue: 0.28), location: 0.60),
+                            .init(color: Color(red: 0.18, green: 0.24, blue: 0.29), location: 1.00),
+                        ],
+                        startPoint: UnitPoint(x: 0.45, y: 0.36),
+                        endPoint: UnitPoint(x: 0.88, y: 0.85)
+                    )
+
+                    // Glow gradient (ball on) layered on top
+                    LinearGradient(
+                        stops: [
+                            .init(color: Color(red: 0.07, green: 0.09, blue: 0.11), location: 0.00),
+                            .init(color: Color(red: 0.16, green: 0.22, blue: 0.27), location: 0.45),
+                            .init(color: Color(red: 0.16, green: 0.22, blue: 0.28), location: 0.96),
+                        ],
+                        startPoint: UnitPoint(x: 0.17, y: 0.46),
+                        endPoint: UnitPoint(x: 0.8, y: 0.95)
+                    )
+                    .opacity(isOrbPressed ? 1.0 : breathGlow)
+                }
                 .ignoresSafeArea()
             }
 
             if pauseCheckIns {
-                // Sleep Mode content
                 sleepModeContent
+            } else if showGlimmerInput {
+                glimmerInputContent
             } else {
-                // Normal mode content
                 normalContent
             }
 
@@ -98,23 +125,22 @@ struct HomeView: View {
                     showGlimmerOverlay = false
                 }
             }
+
+            // Encouragement overlay
+            if showEncouragement {
+                InputEncouragementOverlay(
+                    onDismiss: {
+                        showEncouragement = false
+                        showGlimmerInput = false
+                    }
+                )
+            }
         }
         .animation(.easeInOut(duration: 0.6), value: hasCheckedInToday)
         .animation(.easeInOut(duration: 0.6), value: pauseCheckIns)
+        .animation(.easeInOut(duration: 0.5), value: showGlimmerInput)
         .animation(.easeInOut(duration: 0.35), value: showGlimmerOverlay)
-        .sheet(isPresented: $showGlimmerInput) {
-            GlimmerInputView(
-                onSave: { text, mood in
-                    saveGlimmer(text, mood: mood)
-                    showGlimmerInput = false
-                },
-                onDismiss: {
-                    showGlimmerInput = false
-                }
-            )
-            .presentationDetents([.large])
-            .presentationDragIndicator(.visible)
-        }
+        .animation(.easeInOut(duration: 0.3), value: showEncouragement)
         .onAppear {
             checkTodayStatus()
         }
@@ -196,12 +222,11 @@ struct HomeView: View {
                 .buttonStyle(LightUpButtonStyle())
             } else {
                 Button(action: { showGlimmerInput = true }) {
-                    // The label is just the ball hit area; background image is handled by the style
                     Color.clear
                         .frame(width: 67, height: 63)
                         .contentShape(Rectangle())
                 }
-                .buttonStyle(LightDownButtonStyle())
+                .buttonStyle(LightDownButtonStyle(breathGlow: $breathGlow, isOrbPressed: $isOrbPressed))
             }
 
             Spacer()
@@ -229,6 +254,295 @@ struct HomeView: View {
             }
         }
         .padding(.horizontal, 24)
+    }
+
+    // MARK: - Inline Glimmer Input Content
+
+    private var glimmerInputContent: some View {
+        ScrollView {
+            VStack(spacing: 0) {
+                // Lightup4 character image at top
+                Image("Lightup4")
+                    .resizable()
+                    .scaledToFit()
+                    .frame(width: 300, height: 300)
+                    .padding(.top, 11)
+
+                // Close button
+                Button(action: dismissInput) {
+                    Circle()
+                        .fill(Color.white)
+                        .frame(width: 45, height: 47)
+                        .overlay(
+                            Image(systemName: "xmark")
+                                .font(.system(size: 14, weight: .semibold))
+                                .foregroundColor(themeBrown)
+                        )
+                        .shadow(color: Color(red: 0.98, green: 0.93, blue: 0.76).opacity(0.5), radius: 4, x: 0, y: 3.2)
+                }
+                .padding(.top, 0)
+
+                // "How are you feeling today?"
+                Text("How are you feeling today?")
+                    .font(.custom("Libre Baskerville", size: 16))
+                    .foregroundColor(themeBrown)
+                    .tracking(-0.192)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.top, 24)
+                    .padding(.horizontal, 28)
+
+                // Mood selection bar
+                inlineMoodBar
+                    .padding(.top, 12)
+                    .padding(.horizontal, 28)
+
+                // "Where did the light show up today?"
+                Text("Where did the light show up today?")
+                    .font(.custom("Libre Baskerville", size: 16))
+                    .foregroundColor(themeBrown)
+                    .tracking(-0.192)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.top, 24)
+                    .padding(.horizontal, 28)
+
+                // Input section
+                VStack(alignment: .leading, spacing: 8) {
+                    // Sparkle + label
+                    HStack(spacing: 6) {
+                        Image("Sparkle4")
+                            .resizable()
+                            .frame(width: 18, height: 18)
+                        Text("A trace of light…")
+                            .font(.custom("Urbanist", size: 14).weight(.semibold))
+                            .foregroundColor(themeBrown)
+                            .tracking(-0.084)
+                    }
+
+                    // Text input area
+                    ZStack(alignment: .topLeading) {
+                        TextEditor(text: $glimmerText)
+                            .font(.custom("Urbanist", size: 14))
+                            .foregroundColor(themeBrown)
+                            .scrollContentBackground(.hidden)
+                            .padding(12)
+                            .frame(minHeight: 120, maxHeight: 160)
+                            .background(
+                                RoundedRectangle(cornerRadius: 24)
+                                    .fill(Color.white)
+                                    .overlay(
+                                        RoundedRectangle(cornerRadius: 24)
+                                            .stroke(borderColor, lineWidth: 1)
+                                    )
+                            )
+                            .focused($isTextFieldFocused)
+                            .onChange(of: speechRecognizer.transcript) {
+                                if !speechRecognizer.transcript.isEmpty {
+                                    glimmerText = speechRecognizer.transcript
+                                }
+                            }
+                            .onChange(of: glimmerText) {
+                                if glimmerText.count > maxCharacters {
+                                    glimmerText = String(glimmerText.prefix(maxCharacters))
+                                }
+                            }
+
+                        // Placeholder
+                        if glimmerText.isEmpty {
+                            Text("Ex. Video chatted with an old friend; Had a really good meal with a friend.")
+                                .font(.custom("Urbanist", size: 14))
+                                .foregroundColor(themeBrown.opacity(0.5))
+                                .padding(12)
+                                .padding(.top, 8)
+                                .allowsHitTesting(false)
+                        }
+                    }
+
+                    // Character count + mic
+                    HStack {
+                        Spacer()
+                        Text("\(glimmerText.count)/\(maxCharacters)")
+                            .font(.custom("Urbanist", size: 12))
+                            .foregroundColor(Color(red: 0.659, green: 0.635, blue: 0.624))
+                            .tracking(-0.06)
+
+                        Button(action: toggleRecording) {
+                            Image(systemName: speechRecognizer.isRecording ? "mic.fill" : "mic")
+                                .font(.system(size: 10))
+                                .foregroundColor(speechRecognizer.isRecording ? .white : Color(red: 0.659, green: 0.635, blue: 0.624))
+                                .frame(width: 11, height: 11)
+                        }
+                    }
+
+                    // Helper text
+                    Text("It can be something small. Just a few words is enough.")
+                        .font(.custom("Urbanist", size: 14))
+                        .foregroundColor(themeBrown)
+                        .tracking(-0.084)
+                }
+                .padding(.top, 4)
+                .padding(.horizontal, 28)
+
+                // Submit button
+                Button(action: submitGlimmer) {
+                    HStack {
+                        Text("This moment is kept.")
+                            .font(.custom("Urbanist", size: 14))
+                            .tracking(-0.14)
+
+                        Spacer()
+
+                        Image(systemName: "chevron.right")
+                            .font(.system(size: 14, weight: .medium))
+                            .foregroundColor(.white.opacity(0.6))
+                    }
+                    .foregroundColor(.white)
+                    .padding(.horizontal, 24)
+                    .padding(.vertical, 21)
+                    .frame(maxWidth: .infinity)
+                    .background(
+                        RoundedRectangle(cornerRadius: 30)
+                            .fill(
+                                glimmerText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                                    ? themeBrown.opacity(0.3)
+                                    : themeBrown
+                            )
+                    )
+                }
+                .disabled(glimmerText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                .padding(.horizontal, 28)
+                .padding(.top, 24)
+                .padding(.bottom, 140)
+            }
+        }
+        .scrollIndicators(.hidden)
+        .onAppear {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                isTextFieldFocused = true
+            }
+        }
+    }
+
+    // MARK: - Inline Mood Bar
+
+    private var inlineMoodBar: some View {
+        VStack(spacing: 12) {
+            HStack(spacing: 0) {
+                ForEach(Mood.primary, id: \.self) { mood in
+                    inlineMoodButton(mood)
+                }
+
+                // More button
+                Button(action: { showMoreMoods.toggle() }) {
+                    VStack(spacing: 4) {
+                        ZStack {
+                            Circle()
+                                .stroke(themeBrown, lineWidth: 1)
+                                .frame(width: 25, height: 25)
+                            Image(systemName: "plus")
+                                .font(.system(size: 10, weight: .medium))
+                                .foregroundColor(Color(red: 0.196, green: 0.196, blue: 0.196))
+                        }
+                        .frame(width: 30, height: 30)
+                        Text("More")
+                            .font(.custom("Urbanist", size: 8))
+                            .foregroundColor(themeBrown.opacity(0.8))
+                    }
+                    .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.plain)
+            }
+            .padding(12)
+            .background(
+                RoundedRectangle(cornerRadius: 24)
+                    .fill(Color.white)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 24)
+                            .stroke(borderColor, lineWidth: 1)
+                    )
+            )
+
+            if showMoreMoods {
+                HStack(spacing: 0) {
+                    ForEach(Mood.secondary, id: \.self) { mood in
+                        inlineMoodButton(mood)
+                    }
+                }
+                .padding(12)
+                .background(
+                    RoundedRectangle(cornerRadius: 24)
+                        .fill(Color.white)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 24)
+                                .stroke(borderColor, lineWidth: 1)
+                        )
+                )
+                .transition(.opacity.combined(with: .move(edge: .top)))
+            }
+        }
+        .animation(.easeInOut(duration: 0.2), value: showMoreMoods)
+    }
+
+    private func inlineMoodButton(_ mood: Mood) -> some View {
+        Button(action: {
+            if selectedMood == mood {
+                selectedMood = nil
+            } else {
+                selectedMood = mood
+                UIImpactFeedbackGenerator(style: .light).impactOccurred()
+            }
+        }) {
+            VStack(spacing: 4) {
+                ZStack {
+                    Circle()
+                        .fill(selectedMood == mood ? mood.color : mood.color.opacity(0.3))
+                        .frame(width: 30, height: 30)
+                    MoodEmojiView(mood: mood, size: 26)
+                }
+                .overlay(
+                    selectedMood == mood
+                        ? Circle().stroke(themeBrown, lineWidth: 2).frame(width: 34, height: 34)
+                        : nil
+                )
+                Text(mood.rawValue)
+                    .font(.custom("Urbanist", size: 8))
+                    .foregroundColor(themeBrown.opacity(0.8))
+            }
+            .frame(maxWidth: .infinity)
+        }
+        .buttonStyle(.plain)
+    }
+
+    // MARK: - Input Helpers
+
+    private func toggleRecording() {
+        if speechRecognizer.isRecording {
+            speechRecognizer.stopTranscribing()
+        } else {
+            speechRecognizer.startTranscribing()
+        }
+        UIImpactFeedbackGenerator(style: .light).impactOccurred()
+    }
+
+    private func dismissInput() {
+        isTextFieldFocused = false
+        glimmerText = ""
+        selectedMood = nil
+        showMoreMoods = false
+        showGlimmerInput = false
+    }
+
+    private func submitGlimmer() {
+        let trimmedText = glimmerText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedText.isEmpty else { return }
+        UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+        showEncouragement = true
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.8) {
+            saveGlimmer(trimmedText, mood: selectedMood)
+            glimmerText = ""
+            selectedMood = nil
+            showMoreMoods = false
+            showGlimmerInput = false
+        }
     }
 
     // MARK: - Functions
@@ -270,27 +584,54 @@ struct LightUpButtonStyle: ButtonStyle {
     }
 }
 
-// MARK: - Light Down Button Style (swaps background image on press)
+// MARK: - Light Down Button Style (breathing glow + full glow on press)
 
 struct LightDownButtonStyle: ButtonStyle {
+    @Binding var breathGlow: CGFloat
+    @Binding var isOrbPressed: Bool
+
     func makeBody(configuration: Configuration) -> some View {
         ZStack(alignment: .bottomTrailing) {
+            // Base dark image (always visible)
             Rectangle()
                 .foregroundColor(.clear)
                 .frame(width: 454, height: 454)
                 .background(
-                    Image(configuration.isPressed ? "LightdownHover" : "Lightdown")
+                    Image("Lightdown")
                         .resizable()
                         .aspectRatio(contentMode: .fill)
                         .frame(width: 454, height: 454)
                         .clipped()
                 )
-                .animation(.easeInOut(duration: 0.3), value: configuration.isPressed)
+
+            // Glowing image layered on top
+            Rectangle()
+                .foregroundColor(.clear)
+                .frame(width: 454, height: 454)
+                .background(
+                    Image("LightdownHover")
+                        .resizable()
+                        .aspectRatio(contentMode: .fill)
+                        .frame(width: 454, height: 454)
+                        .clipped()
+                )
+                .opacity(configuration.isPressed ? 1.0 : breathGlow)
 
             // Position the hit-target label over the ball/orb
             configuration.label
                 .padding(.trailing, 55)
                 .padding(.bottom, 100)
+        }
+        .onChange(of: configuration.isPressed) { _, pressed in
+            isOrbPressed = pressed
+        }
+        .onAppear {
+            withAnimation(
+                .easeInOut(duration: 2.4)
+                .repeatForever(autoreverses: true)
+            ) {
+                breathGlow = 0.6
+            }
         }
     }
 }
