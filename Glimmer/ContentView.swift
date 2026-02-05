@@ -1,453 +1,817 @@
 import SwiftUI
 import SwiftData
-import Speech
 
 struct ContentView: View {
     @State private var selectedTab = 0
+    @Query private var accomplishments: [Accomplishment]
+
+    private let themeBrown = Color(red: 0.325, green: 0.212, blue: 0.188)
+
+    private var hasCheckedInToday: Bool {
+        let calendar = Calendar.current
+        let today = calendar.startOfDay(for: Date())
+        return accomplishments.contains { accomplishment in
+            calendar.isDate(accomplishment.createdAt, inSameDayAs: today)
+        }
+    }
+
+    private var isDarkTheme: Bool {
+        selectedTab == 0 && !hasCheckedInToday
+    }
 
     init() {
-        let appearance = UITabBarAppearance()
-        appearance.configureWithOpaqueBackground()
-        appearance.backgroundColor = UIColor(named: "CardBackground")
-        appearance.shadowColor = .clear
-
-        UITabBar.appearance().standardAppearance = appearance
-        UITabBar.appearance().scrollEdgeAppearance = appearance
+        // Hide default tab bar
+        UITabBar.appearance().isHidden = true
     }
 
     var body: some View {
-        TabView(selection: $selectedTab) {
-            ComposeView()
-                .tabItem {
-                    Label("Add", systemImage: "plus.circle")
-                }
-                .tag(0)
+        ZStack(alignment: .bottom) {
+            TabView(selection: $selectedTab) {
+                HomeView()
+                    .tag(0)
 
-            HistoryView()
-                .tabItem {
-                    Label("History", systemImage: "clock")
-                }
-                .tag(1)
+                JournalView()
+                    .tag(1)
+
+                SettingsView()
+                    .tag(2)
+            }
+
+            // Custom Tab Bar matching Figma design
+            CustomTabBar(selectedTab: $selectedTab, isDarkTheme: isDarkTheme)
         }
-        .tint(Color("ButtonPrimary"))
+        .ignoresSafeArea(.keyboard)
+        .animation(.easeInOut(duration: 0.3), value: isDarkTheme)
     }
 }
 
-struct ComposeView: View {
+// MARK: - Custom Tab Bar
+
+struct CustomTabBar: View {
+    @Binding var selectedTab: Int
+    var isDarkTheme: Bool = false
+
+    private let themeBrown = Color(red: 0.325, green: 0.212, blue: 0.188)
+
+    var body: some View {
+        HStack(spacing: 0) {
+            // Here tab - uses custom blob icon from Figma
+            BlobTabBarItem(
+                title: "Here",
+                isSelected: selectedTab == 0,
+                isDarkTheme: isDarkTheme,
+                action: { selectedTab = 0 }
+            )
+
+            // Journal tab
+            TabBarItem(
+                icon: "book.closed",
+                selectedIcon: "book.closed.fill",
+                title: "Journal",
+                isSelected: selectedTab == 1,
+                isDarkTheme: isDarkTheme,
+                action: { selectedTab = 1 }
+            )
+
+            // Settings tab
+            TabBarItem(
+                icon: "gearshape",
+                selectedIcon: "gearshape.fill",
+                title: "Settings",
+                isSelected: selectedTab == 2,
+                isDarkTheme: isDarkTheme,
+                action: { selectedTab = 2 }
+            )
+        }
+        .padding(.horizontal, 24)
+        .padding(.vertical, 10)
+        .background(
+            RoundedRectangle(cornerRadius: 30)
+                .fill(isDarkTheme ? Color(red: 0.24, green: 0.30, blue: 0.34) : Color.white)
+                .shadow(
+                    color: isDarkTheme
+                        ? Color(red: 0.17, green: 0.23, blue: 0.28)
+                        : Color(red: 0.98, green: 0.61, blue: 0.27).opacity(0.20),
+                    radius: 30,
+                    x: 0,
+                    y: 20
+                )
+        )
+        .padding(.horizontal, 20)
+        .padding(.bottom, 8)
+    }
+}
+
+// MARK: - Tab Bar Item
+
+struct TabBarItem: View {
+    let icon: String
+    let selectedIcon: String
+    let title: String
+    let isSelected: Bool
+    var isDarkTheme: Bool = false
+    let action: () -> Void
+
+    private let themeBrown = Color(red: 0.325, green: 0.212, blue: 0.188)
+
+    private var activeColor: Color {
+        isDarkTheme ? .white : themeBrown
+    }
+
+    private var inactiveColor: Color {
+        isDarkTheme ? Color(red: 0.85, green: 0.85, blue: 0.85) : Color(red: 0.34, green: 0.33, blue: 0.31)
+    }
+
+    var body: some View {
+        Button(action: {
+            UIImpactFeedbackGenerator(style: .light).impactOccurred()
+            action()
+        }) {
+            VStack(spacing: 4) {
+                Image(systemName: isSelected ? selectedIcon : icon)
+                    .font(.system(size: 18, weight: isSelected ? .semibold : .regular))
+                    .foregroundColor(isSelected ? activeColor : inactiveColor)
+
+                Text(title)
+                    .font(.custom("Urbanist", size: 12).weight(isSelected ? .semibold : .regular))
+                    .foregroundColor(isSelected ? activeColor : inactiveColor)
+            }
+            .frame(maxWidth: .infinity)
+        }
+        .buttonStyle(.plain)
+    }
+}
+
+// MARK: - Blob Tab Bar Item (custom "Here" icon from Figma)
+
+struct BlobTabBarItem: View {
+    let title: String
+    let isSelected: Bool
+    var isDarkTheme: Bool = false
+    let action: () -> Void
+
+    private let themeBrown = Color(red: 0.325, green: 0.212, blue: 0.188)
+
+    private var activeColor: Color {
+        isDarkTheme ? .white : themeBrown
+    }
+
+    private var inactiveColor: Color {
+        isDarkTheme ? Color(red: 0.85, green: 0.85, blue: 0.85) : Color(red: 0.34, green: 0.33, blue: 0.31)
+    }
+
+    var body: some View {
+        Button(action: {
+            UIImpactFeedbackGenerator(style: .light).impactOccurred()
+            action()
+        }) {
+            VStack(spacing: 4) {
+                Image("BlobIcon")
+                    .renderingMode(.template)
+                    .resizable()
+                    .scaledToFit()
+                    .frame(width: 22, height: 18)
+                    .foregroundColor(isSelected ? activeColor : inactiveColor)
+
+                Text(title)
+                    .font(.custom("Urbanist", size: 12).weight(isSelected ? .semibold : .regular))
+                    .foregroundColor(isSelected ? activeColor : inactiveColor)
+            }
+            .frame(maxWidth: .infinity)
+        }
+        .buttonStyle(.plain)
+    }
+}
+
+// MARK: - Journal View
+
+struct JournalView: View {
     @Environment(\.modelContext) private var modelContext
-    @Query private var accomplishments: [Accomplishment]
-    @State private var accomplishmentText = ""
-    @State private var showEncouragement = false
-    @State private var currentEncouragement = ""
-    @State private var currentPlaceholder = ""
-    @State private var dismissTask: Task<Void, Never>?
-    @State private var showGlimmer = false
+    @Query(sort: \Accomplishment.createdAt, order: .reverse) private var accomplishments: [Accomplishment]
+
+    @State private var showGlimmerOverlay = false
     @State private var selectedGlimmer: Accomplishment?
-    @StateObject private var speechRecognizer = SpeechRecognizer()
-    @State private var hasSpeechPermission = false
 
-    private let placeholders = [
-        "One tiny thing you did for yourself today...",
-        "What made today 1% better?",
-        "A small moment that wasn't bad...",
-        "Something you noticed today...",
-        "One thing that went okay...",
-        "A quiet moment you had...",
-        "Something small you managed...",
-        "What's one thing you didn't hate today?",
-        "A little thing that happened...",
-        "Something you got through...",
-        "One gentle thing from today...",
-        "A moment you can hold onto...",
-        "Something that felt like enough..."
-    ]
-
-    private let encouragements = [
-        "You're more alive than you think.",
-        "That took courage. I see you.",
-        "Small steps still move you forward.",
-        "You showed up today. That matters.",
-        "This moment counts.",
-        "Gentle progress is still progress.",
-        "You're doing better than you know.",
-        "That was worth noticing.",
-        "Every little thing adds up.",
-        "You chose to show up. That's everything.",
-        "This is what growth looks like.",
-        "You're building something quietly beautiful."
-    ]
+    private let bgColor = Color(red: 0.969, green: 0.953, blue: 0.937)
 
     var body: some View {
         ZStack {
-            Color("Background")
-                .ignoresSafeArea()
+            bgColor.ignoresSafeArea()
 
-            // Breathing circle
-            BreathingCircle()
+            ScrollView {
+                VStack(spacing: 16) {
+                    // Gather a Little Light card
+                    GatherLightCard(action: catchGlimmer)
+                        .padding(.top, 8)
 
-            VStack(spacing: 0) {
-                Spacer()
-                    .frame(height: 60)
+                    // Week strip
+                    WeekStripView(accomplishments: accomplishments)
 
-                Text("glimmer")
-                    .font(.system(size: 32, weight: .light, design: .rounded))
-                    .foregroundColor(Color("TextPrimary"))
-                    .padding(.bottom, 8)
+                    // Today's mood card
+                    TodayMoodCard(accomplishments: accomplishments)
 
-                Text("What's one small thing you did today?")
-                    .font(.system(size: 17, weight: .regular, design: .rounded))
-                    .foregroundColor(Color("TextSecondary"))
-                    .padding(.bottom, 48)
+                    // Mood Calendar
+                    MoodCalendarSection(accomplishments: accomplishments)
 
-                VStack(spacing: 24) {
-                    // Text input with microphone button
-                    HStack(alignment: .bottom, spacing: 12) {
-                        TextField(currentPlaceholder, text: $accomplishmentText, axis: .vertical)
-                            .font(.system(size: 18, weight: .regular, design: .rounded))
-                            .foregroundColor(Color("TextPrimary"))
-                            .padding(20)
-                            .background(Color("CardBackground"))
-                            .cornerRadius(16)
-                            .lineLimit(3...6)
-                            .onChange(of: speechRecognizer.transcript) {
-                                if !speechRecognizer.transcript.isEmpty {
-                                    accomplishmentText = speechRecognizer.transcript
-                                }
-                            }
-
-                        // Microphone button
-                        Button(action: toggleRecording) {
-                            Image(systemName: speechRecognizer.isRecording ? "mic.fill" : "mic")
-                                .font(.system(size: 20, weight: .medium))
-                                .foregroundColor(speechRecognizer.isRecording ? .white : Color("ButtonPrimary"))
-                                .frame(width: 52, height: 52)
-                                .background(
-                                    Circle()
-                                        .fill(speechRecognizer.isRecording ? Color("ButtonPrimary") : Color("CardBackground"))
-                                )
-                                .overlay(
-                                    Circle()
-                                        .stroke(Color("ButtonPrimary").opacity(speechRecognizer.isRecording ? 0 : 0.3), lineWidth: 1)
-                                )
-                        }
-                        .animation(.easeInOut(duration: 0.2), value: speechRecognizer.isRecording)
-                    }
-
-                    Button(action: saveAccomplishment) {
-                        Text("Save")
-                            .font(.system(size: 17, weight: .medium, design: .rounded))
-                            .foregroundColor(.white)
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, 16)
-                            .background(
-                                accomplishmentText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-                                    ? Color("ButtonDisabled")
-                                    : Color("ButtonPrimary")
-                            )
-                            .cornerRadius(12)
-                    }
-                    .disabled(accomplishmentText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                    Spacer().frame(height: 100)
                 }
-                .padding(.horizontal, 32)
-
-                Spacer()
-
-                // Catch a Glimmer button
-                CatchGlimmerButton {
-                    catchGlimmer()
-                }
-                .padding(.bottom, 32)
+                .padding(.top, 16)
             }
-
-            // Encouragement overlay
-            if showEncouragement {
-                EncouragementOverlay(
-                    message: currentEncouragement,
-                    isPresented: $showEncouragement
-                )
-                .onTapGesture {
-                    dismissOverlay()
-                }
-            }
+            .scrollIndicators(.hidden)
 
             // Glimmer overlay
-            if showGlimmer {
+            if showGlimmerOverlay {
                 GlimmerOverlay(
                     accomplishment: selectedGlimmer,
-                    isPresented: $showGlimmer
+                    isPresented: $showGlimmerOverlay
                 )
                 .onTapGesture {
-                    showGlimmer = false
+                    showGlimmerOverlay = false
                 }
             }
         }
-        .animation(.easeInOut(duration: 0.35), value: showEncouragement)
-        .animation(.easeInOut(duration: 0.35), value: showGlimmer)
-        .onAppear {
-            currentPlaceholder = placeholders.randomElement() ?? placeholders[0]
-        }
-        .task {
-            hasSpeechPermission = await speechRecognizer.requestAuthorization()
-        }
-    }
-
-    private func toggleRecording() {
-        if speechRecognizer.isRecording {
-            speechRecognizer.stopTranscribing()
-        } else {
-            speechRecognizer.startTranscribing()
-        }
-        UIImpactFeedbackGenerator(style: .light).impactOccurred()
-    }
-
-    private func saveAccomplishment() {
-        let trimmedText = accomplishmentText.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmedText.isEmpty else { return }
-
-        let accomplishment = Accomplishment(text: trimmedText)
-        modelContext.insert(accomplishment)
-
-        accomplishmentText = ""
-        currentEncouragement = encouragements.randomElement() ?? encouragements[0]
-        showEncouragement = true
-
-        UIImpactFeedbackGenerator(style: .light).impactOccurred()
-
-        // Cancel any existing dismiss task
-        dismissTask?.cancel()
-
-        // Auto-dismiss after 3 seconds
-        dismissTask = Task {
-            try? await Task.sleep(for: .seconds(3))
-            if !Task.isCancelled {
-                await MainActor.run {
-                    dismissOverlay()
-                }
-            }
-        }
-    }
-
-    private func dismissOverlay() {
-        dismissTask?.cancel()
-        showEncouragement = false
+        .animation(.easeInOut(duration: 0.35), value: showGlimmerOverlay)
     }
 
     private func catchGlimmer() {
-        if accomplishments.isEmpty {
-            selectedGlimmer = nil
-        } else {
-            selectedGlimmer = accomplishments.randomElement()
-        }
-        showGlimmer = true
+        selectedGlimmer = accomplishments.isEmpty ? nil : accomplishments.randomElement()
+        showGlimmerOverlay = true
         UIImpactFeedbackGenerator(style: .soft).impactOccurred()
     }
 }
 
-// MARK: - Catch Glimmer Button
+// MARK: - Gather a Little Light Card
 
-struct CatchGlimmerButton: View {
+struct GatherLightCard: View {
     let action: () -> Void
-    @State private var glowOpacity: Double = 0.3
-    @State private var glowScale: CGFloat = 0.95
+
+    private let themeBrown = Color(red: 0.325, green: 0.212, blue: 0.188)
 
     var body: some View {
-        Button(action: action) {
-            ZStack {
-                // Outer glow layers
-                Capsule()
-                    .fill(Color("ButtonPrimary").opacity(0.15))
-                    .frame(width: 180, height: 52)
-                    .scaleEffect(glowScale + 0.15)
-                    .opacity(glowOpacity * 0.5)
-
-                Capsule()
-                    .fill(Color("ButtonPrimary").opacity(0.2))
-                    .frame(width: 170, height: 48)
-                    .scaleEffect(glowScale + 0.08)
-                    .opacity(glowOpacity * 0.7)
-
-                // Button
+        VStack(spacing: 0) {
+            // Gradient button
+            Button(action: action) {
                 HStack(spacing: 8) {
-                    Image(systemName: "sparkles")
-                        .font(.system(size: 15, weight: .medium))
-                    Text("捞取微光")
-                        .font(.system(size: 15, weight: .medium, design: .rounded))
+                    Image(systemName: "sparkle")
+                        .font(.system(size: 20, weight: .medium))
+                    Text("Gather a little light")
+                        .font(.custom("Urbanist", size: 20).weight(.medium))
                 }
-                .foregroundColor(Color("ButtonPrimary"))
-                .padding(.horizontal, 24)
-                .padding(.vertical, 14)
+                .foregroundColor(.white)
+                .padding(.horizontal, 20)
+                .padding(.vertical, 18)
+                .frame(maxWidth: .infinity)
                 .background(
                     Capsule()
-                        .fill(Color("CardBackground"))
-                        .shadow(color: Color("ButtonPrimary").opacity(0.15), radius: 12, x: 0, y: 4)
+                        .fill(
+                            LinearGradient(
+                                colors: [
+                                    Color(red: 0.224, green: 0.098, blue: 0.012),
+                                    Color(red: 0.588, green: 0.361, blue: 0.035)
+                                ],
+                                startPoint: .leading,
+                                endPoint: .trailing
+                            )
+                        )
                 )
-                .overlay(
-                    Capsule()
-                        .stroke(Color("ButtonPrimary").opacity(0.25), lineWidth: 1)
-                )
+            }
+            .padding(.horizontal, 20)
+            .padding(.top, 32)
+
+            // Description text
+            VStack(spacing: 2) {
+                Text("Rediscover a moment with us:")
+                Text("We'll bring back a moment you once shared,")
+                Text("along with a thoughtful reflection from us.")
+            }
+            .font(.custom("Urbanist", size: 14))
+            .foregroundColor(themeBrown)
+            .multilineTextAlignment(.center)
+            .padding(.horizontal, 20)
+            .padding(.top, 20)
+            .padding(.bottom, 24)
+        }
+        .background(
+            RoundedRectangle(cornerRadius: 24)
+                .fill(Color.white)
+        )
+        .padding(.horizontal, 32)
+    }
+}
+
+// MARK: - Week Strip View
+
+struct WeekStripView: View {
+    let accomplishments: [Accomplishment]
+
+    private let calendar: Calendar = {
+        var cal = Calendar.current
+        cal.firstWeekday = 2 // Monday
+        return cal
+    }()
+
+    private var weekDates: [Date] {
+        let today = Date()
+        var components = calendar.dateComponents([.yearForWeekOfYear, .weekOfYear], from: today)
+        components.weekday = 2 // Monday
+        guard let monday = calendar.date(from: components) else { return [] }
+        return (0..<7).compactMap { calendar.date(byAdding: .day, value: $0, to: monday) }
+    }
+
+    private func hasEntry(on date: Date) -> Bool {
+        accomplishments.contains { calendar.isDate($0.createdAt, inSameDayAs: date) }
+    }
+
+    private static let dotColors: [Color] = [
+        Color(red: 0.839, green: 0.910, blue: 0.702), // peaceful green
+        Color(red: 0.988, green: 0.804, blue: 0.737), // shy peach
+        Color(red: 0.984, green: 0.749, blue: 0.141), // happy yellow
+        Color(red: 0.698, green: 0.663, blue: 0.749), // calm purple
+    ]
+
+    var body: some View {
+        HStack(spacing: 0) {
+            ForEach(weekDates, id: \.self) { date in
+                let isToday = calendar.isDateInToday(date)
+                let isFuture = date > Date() && !isToday
+                let hasLog = hasEntry(on: date)
+                let dayNum = calendar.component(.day, from: date)
+
+                VStack(spacing: 3) {
+                    VStack(spacing: 0) {
+                        Text(dayLetter(for: date))
+                            .font(.custom("Urbanist", size: 12))
+                            .foregroundColor(isToday ? .white : Color(red: 0.341, green: 0.325, blue: 0.306))
+
+                        Text("\(dayNum)")
+                            .font(.custom("Urbanist", size: 14).weight(.semibold))
+                            .foregroundColor(isToday ? .white : Color(red: 0.161, green: 0.145, blue: 0.141))
+                    }
+                    .padding(8)
+                    .frame(width: 36)
+                    .background(
+                        Capsule()
+                            .fill(isToday ? Color(red: 0.325, green: 0.212, blue: 0.188).opacity(0.8) : Color.white)
+                            .overlay(
+                                !isToday && !isFuture
+                                    ? Capsule().stroke(Color(red: 0.839, green: 0.827, blue: 0.820), lineWidth: 1)
+                                    : nil
+                            )
+                    )
+                    .opacity(isFuture ? 0.7 : 1.0)
+
+                    // Mood dot
+                    if hasLog && !isToday {
+                        Circle()
+                            .fill(Self.dotColors[dayNum % Self.dotColors.count])
+                            .frame(width: 4, height: 4)
+                    } else {
+                        Color.clear.frame(width: 4, height: 4)
+                    }
+                }
+                .frame(maxWidth: .infinity)
             }
         }
-        .buttonStyle(.plain)
-        .onAppear {
-            withAnimation(
-                .easeInOut(duration: 5.5)
-                .repeatForever(autoreverses: true)
-            ) {
-                glowOpacity = 0.8
-                glowScale = 1.1
+        .padding(.horizontal, 16)
+    }
+
+    private func dayLetter(for date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "EEEEE"
+        return formatter.string(from: date)
+    }
+}
+
+// MARK: - Today Mood Card
+
+struct TodayMoodCard: View {
+    let accomplishments: [Accomplishment]
+
+    private let calendar = Calendar.current
+    private let moodNames = ["Grateful", "Happy", "Peaceful", "Shy", "Hopeful"]
+
+    private var todayAccomplishment: Accomplishment? {
+        accomplishments.first { calendar.isDateInToday($0.createdAt) }
+    }
+
+    private var moodName: String {
+        let day = calendar.component(.day, from: Date())
+        return moodNames[day % moodNames.count]
+    }
+
+    var body: some View {
+        if let entry = todayAccomplishment {
+            VStack(spacing: 10) {
+                Text(moodName)
+                    .font(.custom("Urbanist", size: 24).weight(.medium))
+                    .foregroundColor(.black)
+
+                // Mood illustration placeholder
+                ZStack {
+                    Circle()
+                        .fill(Color(red: 0.984, green: 0.890, blue: 0.600))
+                        .frame(width: 80, height: 80)
+                    Text("😊")
+                        .font(.system(size: 40))
+                }
+                .frame(width: 130, height: 120)
+
+                Text(entry.text)
+                    .font(.custom("Urbanist", size: 12))
+                    .foregroundColor(.black)
+                    .lineLimit(2)
+                    .multilineTextAlignment(.center)
             }
+            .padding(12)
+            .frame(maxWidth: .infinity)
+            .background(
+                RoundedRectangle(cornerRadius: 24)
+                    .fill(Color(red: 0.980, green: 0.980, blue: 0.976))
+            )
+            .padding(.horizontal, 32)
         }
     }
 }
 
-// MARK: - Glimmer Overlay
+// MARK: - Mood Calendar Section
 
-struct GlimmerOverlay: View {
-    let accomplishment: Accomplishment?
-    @Binding var isPresented: Bool
+struct MoodCalendarSection: View {
+    let accomplishments: [Accomplishment]
+
+    private let brandAccent = Color(red: 0.573, green: 0.384, blue: 0.278)
 
     var body: some View {
-        ZStack {
-            // Soft dimmed background
-            Color.black.opacity(0.08)
-                .ignoresSafeArea()
-                .transition(.opacity)
+        VStack(spacing: 12) {
+            // Section header
+            HStack {
+                Text("Mood Calendar")
+                    .font(.custom("Urbanist", size: 16).weight(.bold))
+                    .foregroundColor(Color(red: 0.161, green: 0.145, blue: 0.141))
 
-            // Card
-            VStack(spacing: 16) {
-                Image(systemName: "sparkles")
-                    .font(.system(size: 26, weight: .light))
-                    .foregroundColor(Color("ButtonPrimary").opacity(0.8))
-                    .padding(.bottom, 4)
+                Spacer()
 
-                if let accomplishment = accomplishment {
-                    Text(accomplishment.text)
-                        .font(.system(size: 18, weight: .regular, design: .rounded))
-                        .foregroundColor(Color("TextPrimary"))
-                        .multilineTextAlignment(.center)
-                        .lineSpacing(4)
-                        .fixedSize(horizontal: false, vertical: true)
-
-                    Text(formattedDate(accomplishment.createdAt))
-                        .font(.system(size: 14, weight: .regular, design: .rounded))
-                        .foregroundColor(Color("TextSecondary"))
-                        .padding(.top, 4)
-                } else {
-                    Text("Keep collecting glimmers,\nthey'll be here waiting for you.")
-                        .font(.system(size: 17, weight: .regular, design: .rounded))
-                        .foregroundColor(Color("TextSecondary"))
-                        .multilineTextAlignment(.center)
-                        .lineSpacing(4)
+                Button(action: {}) {
+                    Text("See All")
+                        .font(.custom("Urbanist", size: 14).weight(.medium))
+                        .foregroundColor(brandAccent)
                 }
             }
-            .padding(.horizontal, 32)
-            .padding(.vertical, 36)
-            .frame(maxWidth: 300)
-            .background(
-                RoundedRectangle(cornerRadius: 24)
-                    .fill(Color("CardBackground"))
-                    .shadow(color: Color.black.opacity(0.06), radius: 20, x: 0, y: 8)
-            )
-            .transition(
-                .opacity
-                .combined(with: .scale(scale: 0.92))
-            )
+
+            // Calendar card
+            MoodCalendarCard(accomplishments: accomplishments)
         }
+        .padding(.horizontal, 32)
+    }
+}
+
+// MARK: - Mood Calendar Card
+
+struct MoodCalendarCard: View {
+    let accomplishments: [Accomplishment]
+
+    private let calendar: Calendar = {
+        var cal = Calendar.current
+        cal.firstWeekday = 2 // Monday
+        return cal
+    }()
+    private let dayLabels = ["M", "T", "W", "T", "F", "S", "S"]
+    private let gray30 = Color(red: 0.839, green: 0.827, blue: 0.820)
+    private let gray60 = Color(red: 0.341, green: 0.325, blue: 0.306)
+    private let gray80 = Color(red: 0.161, green: 0.145, blue: 0.141)
+
+    private static let moodColors: [Color] = [
+        Color(red: 0.984, green: 0.749, blue: 0.141), // Happy yellow
+        Color(red: 0.694, green: 0.525, blue: 0.369), // Normal brown
+        Color(red: 0.608, green: 0.694, blue: 0.404), // Peaceful green
+        Color(red: 0.988, green: 0.804, blue: 0.737), // Shy peach
+        Color(red: 0.753, green: 0.522, blue: 0.988), // Dreamy purple
+        Color(red: 0.984, green: 0.573, blue: 0.235), // Warm orange
+        Color(red: 0.698, green: 0.663, blue: 0.749), // Calm lavender
+    ]
+
+    private var today: Date { Date() }
+
+    private var daysInMonth: Int {
+        calendar.range(of: .day, in: .month, for: today)!.count
     }
 
-    private func formattedDate(_ date: Date) -> String {
+    private var firstOfMonth: Date {
+        let comps = calendar.dateComponents([.year, .month], from: today)
+        return calendar.date(from: comps)!
+    }
+
+    /// Monday-based offset: Monday=0, Tuesday=1, ..., Sunday=6
+    private var startOffset: Int {
+        let weekday = calendar.component(.weekday, from: firstOfMonth)
+        return (weekday - 2 + 7) % 7
+    }
+
+    private var daysWithEntries: Set<Int> {
+        var days = Set<Int>()
+        for acc in accomplishments {
+            if calendar.isDate(acc.createdAt, equalTo: today, toGranularity: .month) {
+                days.insert(calendar.component(.day, from: acc.createdAt))
+            }
+        }
+        return days
+    }
+
+    private var entryCount: Int {
+        daysWithEntries.count
+    }
+
+    private var monthName: String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "MMMM"
+        return formatter.string(from: today)
+    }
+
+    private var todayDay: Int {
+        calendar.component(.day, from: today)
+    }
+
+    var body: some View {
+        VStack(spacing: 16) {
+            // Month stats
+            VStack(alignment: .leading, spacing: 8) {
+                Text("\(entryCount)/\(daysInMonth)")
+                    .font(.custom("Urbanist", size: 24).weight(.bold))
+                    .foregroundColor(gray80)
+
+                Text("Moods logged this month")
+                    .font(.custom("Urbanist", size: 16))
+                    .foregroundColor(gray80)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+
+            // Divider
+            Rectangle()
+                .fill(gray30)
+                .frame(height: 0.5)
+
+            // Day headers
+            HStack(spacing: 8) {
+                ForEach(dayLabels, id: \.self) { label in
+                    Text(label)
+                        .font(.custom("Urbanist", size: 14).weight(.semibold))
+                        .foregroundColor(gray80)
+                        .frame(maxWidth: .infinity)
+                }
+            }
+
+            // Calendar grid
+            let totalCells = startOffset + daysInMonth
+            let rows = (totalCells + 6) / 7
+
+            VStack(spacing: 0) {
+                ForEach(0..<rows, id: \.self) { row in
+                    HStack(spacing: 8) {
+                        ForEach(0..<7, id: \.self) { col in
+                            let index = row * 7 + col
+                            let day = index - startOffset + 1
+
+                            if day >= 1 && day <= daysInMonth {
+                                let hasEntry = daysWithEntries.contains(day)
+                                let isFutureDay = day > todayDay
+
+                                VStack(spacing: 4) {
+                                    Text("\(day)")
+                                        .font(.custom("Urbanist", size: 12).weight(.medium))
+                                        .foregroundColor(gray60)
+
+                                    if hasEntry {
+                                        // Mood circle with color
+                                        Circle()
+                                            .fill(Self.moodColors[day % Self.moodColors.count])
+                                            .frame(width: 20, height: 20)
+                                    } else if isFutureDay {
+                                        // Future: empty outlined circle
+                                        Circle()
+                                            .stroke(gray30, lineWidth: 1)
+                                            .frame(width: 20, height: 20)
+                                    } else {
+                                        // Past without entry: circle with +
+                                        ZStack {
+                                            Circle()
+                                                .stroke(gray30, style: StrokeStyle(lineWidth: 1, dash: [3, 2]))
+                                                .frame(width: 20, height: 20)
+                                            Image(systemName: "plus")
+                                                .font(.system(size: 8, weight: .medium))
+                                                .foregroundColor(gray30)
+                                        }
+                                    }
+                                }
+                                .frame(maxWidth: .infinity)
+                                .frame(minHeight: 56)
+                            } else {
+                                // Empty cell
+                                Color.clear
+                                    .frame(maxWidth: .infinity)
+                                    .frame(minHeight: 56)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        .padding(16)
+        .background(
+            RoundedRectangle(cornerRadius: 24)
+                .fill(Color(red: 0.980, green: 0.980, blue: 0.976))
+        )
+    }
+}
+
+// MARK: - Swipeable Entry Card
+
+struct SwipeableEntryCard: View {
+    let accomplishment: Accomplishment
+    let onDelete: () -> Void
+
+    @State private var offset: CGFloat = 0
+    @State private var showingDelete = false
+
+    private let deleteThreshold: CGFloat = -70
+    private let themeBrown = Color(red: 0.325, green: 0.212, blue: 0.188)
+
+    var body: some View {
+        ZStack(alignment: .trailing) {
+            // Delete background
+            HStack {
+                Spacer()
+
+                Button(action: onDelete) {
+                    Image(systemName: "leaf")
+                        .font(.system(size: 16, weight: .light))
+                        .foregroundColor(themeBrown.opacity(0.5))
+                        .frame(width: 50, height: 50)
+                }
+                .opacity(showingDelete ? 1 : 0)
+            }
+
+            // Main card
+            EntryCard(accomplishment: accomplishment)
+                .offset(x: offset)
+                .gesture(
+                    DragGesture()
+                        .onChanged { value in
+                            if value.translation.width < 0 {
+                                offset = value.translation.width
+                                showingDelete = offset < deleteThreshold / 2
+                            }
+                        }
+                        .onEnded { value in
+                            withAnimation(.easeOut(duration: 0.25)) {
+                                if offset < deleteThreshold {
+                                    onDelete()
+                                }
+                                offset = 0
+                                showingDelete = false
+                            }
+                        }
+                )
+        }
+    }
+}
+
+// MARK: - Entry Card
+
+struct EntryCard: View {
+    let accomplishment: Accomplishment
+
+    private let themeBrown = Color(red: 0.325, green: 0.212, blue: 0.188)
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text(accomplishment.text)
+                .font(.custom("Urbanist", size: 15))
+                .foregroundColor(themeBrown)
+                .lineSpacing(4)
+
+            Text(formattedDate)
+                .font(.custom("Urbanist", size: 12))
+                .foregroundColor(themeBrown.opacity(0.45))
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(16)
+        .background(
+            RoundedRectangle(cornerRadius: 14)
+                .fill(Color.white)
+        )
+    }
+
+    private var formattedDate: String {
         let formatter = DateFormatter()
         let calendar = Calendar.current
 
-        if calendar.isDateInToday(date) {
+        if calendar.isDateInToday(accomplishment.createdAt) {
             formatter.dateFormat = "'Today at' h:mm a"
-        } else if calendar.isDateInYesterday(date) {
+        } else if calendar.isDateInYesterday(accomplishment.createdAt) {
             formatter.dateFormat = "'Yesterday at' h:mm a"
-        } else if calendar.isDate(date, equalTo: Date(), toGranularity: .year) {
+        } else if calendar.isDate(accomplishment.createdAt, equalTo: Date(), toGranularity: .year) {
             formatter.dateFormat = "MMM d 'at' h:mm a"
         } else {
             formatter.dateFormat = "MMM d, yyyy"
         }
 
-        return formatter.string(from: date)
+        return formatter.string(from: accomplishment.createdAt)
     }
 }
 
-// MARK: - Breathing Circle
+// MARK: - Delete Confirmation Overlay
 
-struct BreathingCircle: View {
-    @State private var scale: CGFloat = 0.85
-    @State private var opacity: Double = 0.3
+struct DeleteConfirmationOverlay: View {
+    let onConfirm: () -> Void
+    let onCancel: () -> Void
 
-    var body: some View {
-        Circle()
-            .fill(
-                RadialGradient(
-                    gradient: Gradient(colors: [
-                        Color("ButtonPrimary").opacity(0.15),
-                        Color("ButtonPrimary").opacity(0.05),
-                        Color.clear
-                    ]),
-                    center: .center,
-                    startRadius: 0,
-                    endRadius: 180
-                )
-            )
-            .frame(width: 320, height: 320)
-            .scaleEffect(scale)
-            .opacity(opacity)
-            .offset(y: -50)
-            .onAppear {
-                withAnimation(
-                    .easeInOut(duration: 5.5)
-                    .repeatForever(autoreverses: true)
-                ) {
-                    scale = 1.2
-                    opacity = 0.7
-                }
-            }
-    }
-}
-
-// MARK: - Encouragement Overlay
-
-struct EncouragementOverlay: View {
-    let message: String
-    @Binding var isPresented: Bool
+    private let themeBrown = Color(red: 0.325, green: 0.212, blue: 0.188)
 
     var body: some View {
         ZStack {
-            // Soft dimmed background
-            Color.black.opacity(0.08)
+            Color.black.opacity(0.15)
                 .ignoresSafeArea()
+                .onTapGesture {
+                    onCancel()
+                }
                 .transition(.opacity)
 
-            // Card
             VStack(spacing: 20) {
-                Image(systemName: "sparkle")
-                    .font(.system(size: 28, weight: .light))
-                    .foregroundColor(Color("ButtonPrimary").opacity(0.8))
+                Image(systemName: "leaf")
+                    .font(.system(size: 24, weight: .light))
+                    .foregroundColor(themeBrown.opacity(0.6))
 
-                Text(message)
-                    .font(.system(size: 19, weight: .regular, design: .rounded))
-                    .foregroundColor(Color("TextPrimary"))
+                Text("Hide this glimmer?")
+                    .font(.custom("Urbanist", size: 16).weight(.medium))
+                    .foregroundColor(themeBrown)
                     .multilineTextAlignment(.center)
-                    .lineSpacing(4)
-                    .fixedSize(horizontal: false, vertical: true)
+
+                HStack(spacing: 14) {
+                    Button(action: onCancel) {
+                        Text("Keep")
+                            .font(.custom("Urbanist", size: 14).weight(.medium))
+                            .foregroundColor(themeBrown.opacity(0.6))
+                            .padding(.horizontal, 24)
+                            .padding(.vertical, 10)
+                            .background(
+                                Capsule()
+                                    .fill(themeBrown.opacity(0.08))
+                            )
+                    }
+
+                    Button(action: onConfirm) {
+                        Text("Hide")
+                            .font(.custom("Urbanist", size: 14).weight(.medium))
+                            .foregroundColor(.white)
+                            .padding(.horizontal, 24)
+                            .padding(.vertical, 10)
+                            .background(
+                                Capsule()
+                                    .fill(themeBrown.opacity(0.8))
+                            )
+                    }
+                }
             }
-            .padding(.horizontal, 32)
-            .padding(.vertical, 36)
-            .frame(maxWidth: 300)
+            .padding(.horizontal, 28)
+            .padding(.vertical, 28)
             .background(
-                RoundedRectangle(cornerRadius: 24)
-                    .fill(Color("CardBackground"))
-                    .shadow(color: Color.black.opacity(0.06), radius: 20, x: 0, y: 8)
+                RoundedRectangle(cornerRadius: 22)
+                    .fill(Color.white)
+                    .shadow(color: Color.black.opacity(0.08), radius: 20, x: 0, y: 8)
             )
             .transition(
                 .opacity
                 .combined(with: .scale(scale: 0.92))
             )
         }
+    }
+}
+
+// MARK: - Deleted Message Overlay
+
+struct DeletedMessageOverlay: View {
+    private let themeBrown = Color(red: 0.325, green: 0.212, blue: 0.188)
+
+    var body: some View {
+        VStack(spacing: 10) {
+            Image(systemName: "checkmark")
+                .font(.system(size: 18, weight: .medium))
+                .foregroundColor(Color(red: 1.0, green: 0.85, blue: 0.4))
+
+            Text("Hidden")
+                .font(.custom("Urbanist", size: 15).weight(.medium))
+                .foregroundColor(themeBrown)
+        }
+        .padding(.horizontal, 28)
+        .padding(.vertical, 20)
+        .background(
+            RoundedRectangle(cornerRadius: 18)
+                .fill(Color.white)
+                .shadow(color: Color.black.opacity(0.08), radius: 16, x: 0, y: 6)
+        )
+        .transition(
+            .opacity
+            .combined(with: .scale(scale: 0.9))
+        )
     }
 }
 
@@ -456,27 +820,4 @@ struct EncouragementOverlay: View {
 #Preview {
     ContentView()
         .modelContainer(for: Accomplishment.self, inMemory: true)
-}
-
-#Preview("Overlay") {
-    ZStack {
-        Color("Background")
-            .ignoresSafeArea()
-
-        EncouragementOverlay(
-            message: "You're more alive than you think.",
-            isPresented: .constant(true)
-        )
-    }
-}
-
-#Preview("Catch Glimmer Button") {
-    ZStack {
-        Color("Background")
-            .ignoresSafeArea()
-
-        CatchGlimmerButton {
-            print("Caught!")
-        }
-    }
 }

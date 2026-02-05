@@ -3,6 +3,8 @@ import SwiftData
 
 @main
 struct GlimmerApp: App {
+    @State private var showSplash = true
+
     var sharedModelContainer: ModelContainer = {
         let schema = Schema([
             Accomplishment.self,
@@ -18,7 +20,16 @@ struct GlimmerApp: App {
 
     var body: some Scene {
         WindowGroup {
-            ContentView()
+            ZStack {
+                ContentView()
+                    .opacity(showSplash ? 0 : 1)
+
+                if showSplash {
+                    SplashView(isActive: $showSplash)
+                        .transition(.opacity)
+                }
+            }
+            .animation(.easeInOut(duration: 0.5), value: showSplash)
         }
         .modelContainer(sharedModelContainer)
     }
