@@ -2,16 +2,19 @@ import SwiftUI
 import Speech
 
 struct GlimmerInputView: View {
-    let onSave: (String) -> Void
+    let onSave: (String, Mood?) -> Void
     let onDismiss: () -> Void
 
     @State private var glimmerText = ""
+    @State private var selectedMood: Mood?
+    @State private var showMoreMoods = false
     @State private var showEncouragement = false
     @StateObject private var speechRecognizer = SpeechRecognizer()
     @FocusState private var isTextFieldFocused: Bool
 
     private let maxCharacters = 300
     private let themeBrown = Color(red: 0.325, green: 0.212, blue: 0.188)
+    private let borderColor = Color(red: 0.839, green: 0.827, blue: 0.820) // #D6D3D1
 
     var body: some View {
         ZStack {
@@ -26,186 +29,181 @@ struct GlimmerInputView: View {
             )
             .ignoresSafeArea()
 
-            // Background ellipses
+            // Background decorative shape
             ZStack {
                 Ellipse()
                     .fill(
                         LinearGradient(
                             colors: [
-                                Color(red: 0.78, green: 0.88, blue: 0.95).opacity(0.7),
-                                Color(red: 1.0, green: 0.96, blue: 0.8).opacity(0.5)
+                                Color(red: 0.843, green: 0.914, blue: 1.0).opacity(0.7),
+                                Color(red: 1.0, green: 0.98, blue: 0.925).opacity(0.5)
                             ],
                             startPoint: .topLeading,
                             endPoint: .bottomTrailing
                         )
                     )
-                    .frame(width: 350, height: 250)
-                    .blur(radius: 60)
-                    .offset(x: -30, y: -280)
-
-                Ellipse()
-                    .fill(
-                        LinearGradient(
-                            colors: [
-                                Color(red: 0.78, green: 0.88, blue: 0.95).opacity(0.6),
-                                Color(red: 1.0, green: 0.96, blue: 0.8).opacity(0.4)
-                            ],
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
-                        )
-                    )
-                    .frame(width: 300, height: 200)
-                    .blur(radius: 50)
-                    .offset(x: 100, y: -180)
+                    .frame(width: 300, height: 300)
+                    .blur(radius: 25)
+                    .offset(x: 0, y: -200)
             }
 
-            VStack(spacing: 0) {
-                // Header with close button
-                HStack {
-                    Button(action: onDismiss) {
-                        Circle()
-                            .fill(Color.white)
-                            .frame(width: 36, height: 36)
-                            .overlay(
-                                Image(systemName: "xmark")
-                                    .font(.system(size: 14, weight: .semibold))
-                                    .foregroundColor(themeBrown.opacity(0.6))
-                            )
-                            .shadow(color: Color.black.opacity(0.06), radius: 4, x: 0, y: 2)
+            ScrollView {
+                VStack(spacing: 0) {
+                    // Header with close button
+                    HStack {
+                        Spacer()
+                        Button(action: onDismiss) {
+                            Circle()
+                                .fill(Color.white)
+                                .frame(width: 36, height: 36)
+                                .overlay(
+                                    Image(systemName: "xmark")
+                                        .font(.system(size: 14, weight: .semibold))
+                                        .foregroundColor(themeBrown)
+                                )
+                                .shadow(color: Color.black.opacity(0.06), radius: 4, x: 0, y: 2)
+                        }
                     }
-                    Spacer()
-                }
-                .padding(.horizontal, 24)
-                .padding(.top, 16)
+                    .padding(.horizontal, 24)
+                    .padding(.top, 16)
 
-                // Lightup character
-                Image("Lightup4")
-                    .resizable()
-                    .scaledToFit()
-                    .frame(width: 120, height: 120)
+                    // Question 1: How are you feeling?
+                    Text("How are you feeling today?")
+                        .font(.custom("Baskerville", size: 16))
+                        .foregroundColor(themeBrown)
+                        .padding(.top, 24)
+
+                    // Mood selection bar
+                    moodSelectionBar
+                        .padding(.top, 16)
+                        .padding(.horizontal, 24)
+
+                    // Question 2: Where did the light show up?
+                    Text("Where did the light show up today?")
+                        .font(.custom("Baskerville", size: 16))
+                        .foregroundColor(themeBrown)
+                        .padding(.top, 28)
+
+                    // Input section
+                    VStack(alignment: .leading, spacing: 8) {
+                        // Label with sparkle
+                        HStack(spacing: 6) {
+                            Image(systemName: "sparkle")
+                                .font(.system(size: 12, weight: .medium))
+                                .foregroundColor(themeBrown)
+                            Text("A trace of light…")
+                                .font(.custom("Urbanist", size: 14).weight(.semibold))
+                                .foregroundColor(themeBrown)
+                        }
+                        .padding(.leading, 4)
+
+                        // Text input area
+                        ZStack(alignment: .topLeading) {
+                            TextEditor(text: $glimmerText)
+                                .font(.custom("Urbanist", size: 15))
+                                .foregroundColor(themeBrown)
+                                .scrollContentBackground(.hidden)
+                                .padding(14)
+                                .frame(minHeight: 100, maxHeight: 140)
+                                .background(
+                                    RoundedRectangle(cornerRadius: 24)
+                                        .fill(Color.white)
+                                        .overlay(
+                                            RoundedRectangle(cornerRadius: 24)
+                                                .stroke(borderColor, lineWidth: 1)
+                                        )
+                                )
+                                .focused($isTextFieldFocused)
+                                .onChange(of: speechRecognizer.transcript) {
+                                    if !speechRecognizer.transcript.isEmpty {
+                                        glimmerText = speechRecognizer.transcript
+                                    }
+                                }
+                                .onChange(of: glimmerText) {
+                                    if glimmerText.count > maxCharacters {
+                                        glimmerText = String(glimmerText.prefix(maxCharacters))
+                                    }
+                                }
+
+                            // Placeholder
+                            if glimmerText.isEmpty {
+                                Text("Ex. Video chatted with an old friend; Had a really good meal")
+                                    .font(.custom("Urbanist", size: 15))
+                                    .foregroundColor(themeBrown.opacity(0.4))
+                                    .padding(14)
+                                    .padding(.top, 8)
+                                    .allowsHitTesting(false)
+                            }
+                        }
+
+                        // Helper text and controls row
+                        HStack(alignment: .center) {
+                            Text("It can be something small. Just a few words is enough.")
+                                .font(.custom("Urbanist", size: 13))
+                                .foregroundColor(themeBrown.opacity(0.6))
+                                .lineLimit(2)
+                                .fixedSize(horizontal: false, vertical: true)
+
+                            Spacer()
+
+                            // Character count
+                            Text("\(glimmerText.count)/\(maxCharacters)")
+                                .font(.custom("Urbanist", size: 12))
+                                .foregroundColor(Color(red: 0.659, green: 0.635, blue: 0.624)) // #A8A29E
+                                .padding(.trailing, 8)
+
+                            // Mic button
+                            Button(action: toggleRecording) {
+                                Circle()
+                                    .fill(speechRecognizer.isRecording ? themeBrown : Color.white)
+                                    .frame(width: 28, height: 28)
+                                    .overlay(
+                                        Image(systemName: speechRecognizer.isRecording ? "mic.fill" : "mic")
+                                            .font(.system(size: 12, weight: .medium))
+                                            .foregroundColor(speechRecognizer.isRecording ? .white : themeBrown.opacity(0.5))
+                                    )
+                                    .shadow(color: Color.black.opacity(0.08), radius: 2, x: 0, y: 1)
+                            }
+                        }
+                        .padding(.horizontal, 4)
+                        .padding(.top, 4)
+                    }
+                    .padding(.horizontal, 24)
                     .padding(.top, 20)
 
-                // Question title
-                Text("Where did the light show up today?")
-                    .font(.custom("Urbanist", size: 22).weight(.semibold))
-                    .foregroundColor(themeBrown)
-                    .multilineTextAlignment(.center)
-                    .padding(.horizontal, 32)
-                    .padding(.top, 24)
+                    Spacer().frame(height: 40)
 
-                // Input section
-                VStack(alignment: .leading, spacing: 8) {
-                    // Label with sparkle
-                    HStack(spacing: 6) {
-                        Image(systemName: "sparkle")
-                            .font(.system(size: 12, weight: .medium))
-                            .foregroundColor(Color(red: 1.0, green: 0.85, blue: 0.4))
-                        Text("A trace of light...")
-                            .font(.custom("Urbanist", size: 14).weight(.semibold))
-                            .foregroundColor(themeBrown)
-                    }
-                    .padding(.leading, 4)
+                    // Save button
+                    Button(action: saveGlimmer) {
+                        HStack {
+                            Text("This moment is kept.")
+                                .font(.custom("Urbanist", size: 14).weight(.medium))
 
-                    // Text input area
-                    ZStack(alignment: .topLeading) {
-                        TextEditor(text: $glimmerText)
-                            .font(.custom("Urbanist", size: 15))
-                            .foregroundColor(themeBrown)
-                            .scrollContentBackground(.hidden)
-                            .padding(14)
-                            .frame(minHeight: 100, maxHeight: 140)
-                            .background(
-                                RoundedRectangle(cornerRadius: 12)
-                                    .fill(Color.white)
-                                    .overlay(
-                                        RoundedRectangle(cornerRadius: 12)
-                                            .stroke(themeBrown.opacity(0.15), lineWidth: 1)
-                                    )
-                            )
-                            .focused($isTextFieldFocused)
-                            .onChange(of: speechRecognizer.transcript) {
-                                if !speechRecognizer.transcript.isEmpty {
-                                    glimmerText = speechRecognizer.transcript
-                                }
-                            }
-                            .onChange(of: glimmerText) {
-                                if glimmerText.count > maxCharacters {
-                                    glimmerText = String(glimmerText.prefix(maxCharacters))
-                                }
-                            }
+                            Spacer()
 
-                        // Placeholder
-                        if glimmerText.isEmpty {
-                            Text("Ex. Video chatted with an old friend; Had a really good meal with a friend.")
-                                .font(.custom("Urbanist", size: 15))
-                                .foregroundColor(themeBrown.opacity(0.4))
-                                .padding(14)
-                                .padding(.top, 8)
-                                .allowsHitTesting(false)
+                            Image(systemName: "arrow.right")
+                                .font(.system(size: 14, weight: .medium))
+                                .foregroundColor(Color.white.opacity(0.6))
                         }
-                    }
-
-                    // Helper text and controls row
-                    HStack(alignment: .center) {
-                        Text("It can be something small. Just a few words is enough.")
-                            .font(.custom("Urbanist", size: 13))
-                            .foregroundColor(themeBrown.opacity(0.6))
-                            .lineLimit(2)
-                            .fixedSize(horizontal: false, vertical: true)
-
-                        Spacer()
-
-                        // Character count
-                        Text("\(glimmerText.count)/\(maxCharacters)")
-                            .font(.custom("Urbanist", size: 11))
-                            .foregroundColor(themeBrown.opacity(0.4))
-                            .padding(.trailing, 8)
-
-                        // Mic button
-                        Button(action: toggleRecording) {
-                            Circle()
-                                .fill(speechRecognizer.isRecording ? themeBrown : Color.white)
-                                .frame(width: 28, height: 28)
-                                .overlay(
-                                    Image(systemName: speechRecognizer.isRecording ? "mic.fill" : "mic")
-                                        .font(.system(size: 12, weight: .medium))
-                                        .foregroundColor(speechRecognizer.isRecording ? .white : themeBrown.opacity(0.5))
+                        .foregroundColor(.white)
+                        .frame(maxWidth: .infinity)
+                        .padding(.horizontal, 20)
+                        .padding(.vertical, 18)
+                        .background(
+                            RoundedRectangle(cornerRadius: 30)
+                                .fill(
+                                    glimmerText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                                        ? themeBrown.opacity(0.3)
+                                        : themeBrown
                                 )
-                                .shadow(color: Color.black.opacity(0.08), radius: 2, x: 0, y: 1)
-                        }
+                        )
                     }
-                    .padding(.horizontal, 4)
-                    .padding(.top, 4)
+                    .disabled(glimmerText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                    .padding(.horizontal, 24)
+                    .padding(.bottom, 40)
                 }
-                .padding(.horizontal, 24)
-                .padding(.top, 28)
-
-                Spacer()
-
-                // Save button
-                Button(action: saveGlimmer) {
-                    HStack(spacing: 8) {
-                        Image(systemName: "checkmark.circle.fill")
-                            .font(.system(size: 16, weight: .medium))
-                        Text("This moment is kept.")
-                            .font(.custom("Urbanist", size: 15).weight(.semibold))
-                    }
-                    .foregroundColor(.white)
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 14)
-                    .background(
-                        Capsule()
-                            .fill(
-                                glimmerText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-                                    ? themeBrown.opacity(0.3)
-                                    : themeBrown
-                            )
-                    )
-                }
-                .disabled(glimmerText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-                .padding(.horizontal, 24)
-                .padding(.bottom, 40)
             }
+            .scrollIndicators(.hidden)
 
             // Encouragement overlay
             if showEncouragement {
@@ -218,11 +216,104 @@ struct GlimmerInputView: View {
             }
         }
         .animation(.easeInOut(duration: 0.3), value: showEncouragement)
+        .animation(.easeInOut(duration: 0.2), value: showMoreMoods)
         .onAppear {
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
                 isTextFieldFocused = true
             }
         }
+    }
+
+    // MARK: - Mood Selection Bar
+
+    private var moodSelectionBar: some View {
+        VStack(spacing: 12) {
+            // Primary moods row
+            HStack(spacing: 0) {
+                ForEach(Mood.primary, id: \.self) { mood in
+                    moodButton(mood)
+                }
+
+                // More button
+                Button(action: { showMoreMoods.toggle() }) {
+                    VStack(spacing: 4) {
+                        ZStack {
+                            Circle()
+                                .fill(showMoreMoods ? themeBrown.opacity(0.1) : Color(red: 0.969, green: 0.969, blue: 0.969))
+                                .frame(width: 36, height: 36)
+                            Image(systemName: "plus")
+                                .font(.system(size: 14, weight: .medium))
+                                .foregroundColor(themeBrown.opacity(0.6))
+                        }
+                        Text("More")
+                            .font(.custom("Urbanist", size: 8))
+                            .foregroundColor(themeBrown.opacity(0.8))
+                    }
+                    .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.plain)
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 12)
+            .background(
+                RoundedRectangle(cornerRadius: 24)
+                    .fill(Color.white)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 24)
+                            .stroke(borderColor, lineWidth: 1)
+                    )
+            )
+
+            // Secondary moods row (expandable)
+            if showMoreMoods {
+                HStack(spacing: 0) {
+                    ForEach(Mood.secondary, id: \.self) { mood in
+                        moodButton(mood)
+                    }
+                }
+                .padding(.horizontal, 12)
+                .padding(.vertical, 12)
+                .background(
+                    RoundedRectangle(cornerRadius: 24)
+                        .fill(Color.white)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 24)
+                                .stroke(borderColor, lineWidth: 1)
+                        )
+                )
+                .transition(.opacity.combined(with: .move(edge: .top)))
+            }
+        }
+    }
+
+    private func moodButton(_ mood: Mood) -> some View {
+        Button(action: {
+            if selectedMood == mood {
+                selectedMood = nil
+            } else {
+                selectedMood = mood
+                UIImpactFeedbackGenerator(style: .light).impactOccurred()
+            }
+        }) {
+            VStack(spacing: 4) {
+                ZStack {
+                    Circle()
+                        .fill(selectedMood == mood ? mood.color : mood.color.opacity(0.3))
+                        .frame(width: 36, height: 36)
+                    MoodEmojiView(mood: mood, size: 30)
+                }
+                .overlay(
+                    selectedMood == mood
+                        ? Circle().stroke(themeBrown, lineWidth: 2).frame(width: 40, height: 40)
+                        : nil
+                )
+                Text(mood.rawValue)
+                    .font(.custom("Urbanist", size: 8))
+                    .foregroundColor(themeBrown.opacity(0.8))
+            }
+            .frame(maxWidth: .infinity)
+        }
+        .buttonStyle(.plain)
     }
 
     private func toggleRecording() {
@@ -242,7 +333,7 @@ struct GlimmerInputView: View {
         showEncouragement = true
 
         DispatchQueue.main.asyncAfter(deadline: .now() + 1.8) {
-            onSave(trimmedText)
+            onSave(trimmedText, selectedMood)
         }
     }
 }
@@ -305,7 +396,7 @@ struct InputEncouragementOverlay: View {
 
 #Preview {
     GlimmerInputView(
-        onSave: { _ in },
+        onSave: { _, _ in },
         onDismiss: {}
     )
 }

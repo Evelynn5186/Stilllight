@@ -2,7 +2,9 @@ import SwiftUI
 
 struct SettingsView: View {
     @State private var showProfileView = false
-    @State private var pauseCheckIns = false
+    @State private var showSafetyView = false
+    @State private var showReminderView = false
+    @AppStorage("pauseCheckIns") var pauseCheckIns = false
 
     private let themeBrown = Color(red: 0.325, green: 0.212, blue: 0.188)
     private let bgColor = Color(red: 0.969, green: 0.953, blue: 0.937)
@@ -37,14 +39,14 @@ struct SettingsView: View {
                             SettingsCard(
                                 title: "Safety",
                                 subtitle: "Emergency Contact, Check-ins",
-                                action: {}
+                                action: { showSafetyView = true }
                             )
 
                             // Reminders
                             SettingsCard(
                                 title: "Reminders",
                                 subtitle: "Check-in Reminders",
-                                action: {}
+                                action: { showReminderView = true }
                             )
 
                             // Account
@@ -71,6 +73,12 @@ struct SettingsView: View {
             }
             .navigationDestination(isPresented: $showProfileView) {
                 AccountView()
+            }
+            .navigationDestination(isPresented: $showSafetyView) {
+                SafetyView()
+            }
+            .navigationDestination(isPresented: $showReminderView) {
+                ReminderView()
             }
         }
     }

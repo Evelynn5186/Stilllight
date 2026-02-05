@@ -4,6 +4,7 @@ import SwiftData
 struct ContentView: View {
     @State private var selectedTab = 0
     @Query private var accomplishments: [Accomplishment]
+    @AppStorage("pauseCheckIns") private var pauseCheckIns = false
 
     private let themeBrown = Color(red: 0.325, green: 0.212, blue: 0.188)
 
@@ -16,7 +17,7 @@ struct ContentView: View {
     }
 
     private var isDarkTheme: Bool {
-        selectedTab == 0 && !hasCheckedInToday
+        selectedTab == 0 && (!hasCheckedInToday || pauseCheckIns)
     }
 
     init() {
@@ -160,18 +161,25 @@ struct BlobTabBarItem: View {
         isDarkTheme ? Color(red: 0.85, green: 0.85, blue: 0.85) : Color(red: 0.34, green: 0.33, blue: 0.31)
     }
 
+    private var blobIconName: String {
+        if isDarkTheme {
+            return isSelected ? "BlobIconDarkSelected" : "BlobIconUnselected"
+        } else {
+            return isSelected ? "BlobIconSelected" : "BlobIconUnselected"
+        }
+    }
+
     var body: some View {
         Button(action: {
             UIImpactFeedbackGenerator(style: .light).impactOccurred()
             action()
         }) {
             VStack(spacing: 4) {
-                Image("BlobIcon")
-                    .renderingMode(.template)
+                Image(blobIconName)
+                    .renderingMode(.original)
                     .resizable()
                     .scaledToFit()
                     .frame(width: 22, height: 18)
-                    .foregroundColor(isSelected ? activeColor : inactiveColor)
 
                 Text(title)
                     .font(.custom("Urbanist", size: 12).weight(isSelected ? .semibold : .regular))
@@ -318,16 +326,28 @@ struct WeekStripView: View {
         return (0..<7).compactMap { calendar.date(byAdding: .day, value: $0, to: monday) }
     }
 
-    private func hasEntry(on date: Date) -> Bool {
-        accomplishments.contains { calendar.isDate($0.createdAt, inSameDayAs: date) }
+    private func entryForDate(_ date: Date) -> Accomplishment? {
+        accomplishments.first { calendar.isDate($0.createdAt, inSameDayAs: date) }
     }
 
-    private static let dotColors: [Color] = [
-        Color(red: 0.839, green: 0.910, blue: 0.702), // peaceful green
-        Color(red: 0.988, green: 0.804, blue: 0.737), // shy peach
-        Color(red: 0.984, green: 0.749, blue: 0.141), // happy yellow
-        Color(red: 0.698, green: 0.663, blue: 0.749), // calm purple
-    ]
+    private func hasEntry(on date: Date) -> Bool {
+        entryForDate(date) != nil
+    }
+
+    private func moodColor(for date: Date) -> Color {
+        if let entry = entryForDate(date), let mood = entry.mood {
+            return mood.color
+        }
+        // Fallback colors when no mood is set
+        let day = calendar.component(.day, from: date)
+        let fallbackColors: [Color] = [
+            Color(red: 0.839, green: 0.910, blue: 0.702),
+            Color(red: 0.988, green: 0.804, blue: 0.737),
+            Color(red: 0.984, green: 0.749, blue: 0.141),
+            Color(red: 0.698, green: 0.663, blue: 0.749),
+        ]
+        return fallbackColors[day % fallbackColors.count]
+    }
 
     var body: some View {
         HStack(spacing: 0) {
@@ -363,7 +383,7 @@ struct WeekStripView: View {
                     // Mood dot
                     if hasLog && !isToday {
                         Circle()
-                            .fill(Self.dotColors[dayNum % Self.dotColors.count])
+                            .fill(moodColor(for: date))
                             .frame(width: 4, height: 4)
                     } else {
                         Color.clear.frame(width: 4, height: 4)
@@ -388,41 +408,64 @@ struct TodayMoodCard: View {
     let accomplishments: [Accomplishment]
 
     private let calendar = Calendar.current
-    private let moodNames = ["Grateful", "Happy", "Peaceful", "Shy", "Hopeful"]
+    private let themeBrown = Color(red: 0.325, green: 0.212, blue: 0.188)
+    private let insights = [
+        "Simple moments can still mean something.",
+        "You noticed the light. That's enough.",
+        "This was worth holding onto.",
+        "The small things carry the most warmth.",
+        "You showed up, and that matters.",
+        "Every glimmer adds to the whole.",
+    ]
 
     private var todayAccomplishment: Accomplishment? {
         accomplishments.first { calendar.isDateInToday($0.createdAt) }
     }
 
-    private var moodName: String {
+    private var insight: String {
         let day = calendar.component(.day, from: Date())
-        return moodNames[day % moodNames.count]
+        return insights[day % insights.count]
     }
 
     var body: some View {
         if let entry = todayAccomplishment {
-            VStack(spacing: 10) {
-                Text(moodName)
-                    .font(.custom("Urbanist", size: 24).weight(.medium))
-                    .foregroundColor(.black)
+            let mood = entry.mood ?? .happy
 
-                // Mood illustration placeholder
+            VStack(spacing: 12) {
+                // Mood name
+                Text(mood.rawValue)
+                    .font(.custom("Urbanist", size: 24).weight(.medium))
+                    .foregroundColor(themeBrown)
+
+                // Mood emoji with colored background
                 ZStack {
                     Circle()
-                        .fill(Color(red: 0.984, green: 0.890, blue: 0.600))
+                        .fill(mood.color)
                         .frame(width: 80, height: 80)
-                    Text("😊")
-                        .font(.system(size: 40))
+                    MoodEmojiView(mood: mood, size: 60)
                 }
                 .frame(width: 130, height: 120)
 
-                Text(entry.text)
-                    .font(.custom("Urbanist", size: 12))
-                    .foregroundColor(.black)
-                    .lineLimit(2)
+                // Entry text in Baskerville (per Figma)
+                Text("\u{201C}" + entry.text + "\u{201D}")
+                    .font(.custom("Baskerville", size: 15))
+                    .foregroundColor(themeBrown)
                     .multilineTextAlignment(.center)
+                    .lineSpacing(4)
+                    .fixedSize(horizontal: false, vertical: true)
+
+                // Timestamp
+                Text(formattedTimestamp(entry.createdAt))
+                    .font(.custom("Urbanist", size: 10))
+                    .foregroundColor(themeBrown.opacity(0.5))
+
+                // Insight
+                Text(insight)
+                    .font(.custom("Urbanist", size: 12))
+                    .foregroundColor(themeBrown.opacity(0.6))
+                    .italic()
             }
-            .padding(12)
+            .padding(16)
             .frame(maxWidth: .infinity)
             .background(
                 RoundedRectangle(cornerRadius: 24)
@@ -430,6 +473,12 @@ struct TodayMoodCard: View {
             )
             .padding(.horizontal, 32)
         }
+    }
+
+    private func formattedTimestamp(_ date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "'Written on' MMM d, yyyy '·' h:mm a"
+        return formatter.string(from: date)
     }
 }
 
@@ -479,14 +528,14 @@ struct MoodCalendarCard: View {
     private let gray60 = Color(red: 0.341, green: 0.325, blue: 0.306)
     private let gray80 = Color(red: 0.161, green: 0.145, blue: 0.141)
 
-    private static let moodColors: [Color] = [
-        Color(red: 0.984, green: 0.749, blue: 0.141), // Happy yellow
-        Color(red: 0.694, green: 0.525, blue: 0.369), // Normal brown
-        Color(red: 0.608, green: 0.694, blue: 0.404), // Peaceful green
-        Color(red: 0.988, green: 0.804, blue: 0.737), // Shy peach
-        Color(red: 0.753, green: 0.522, blue: 0.988), // Dreamy purple
-        Color(red: 0.984, green: 0.573, blue: 0.235), // Warm orange
-        Color(red: 0.698, green: 0.663, blue: 0.749), // Calm lavender
+    private static let fallbackMoodColors: [Color] = [
+        Color(red: 0.988, green: 0.804, blue: 0.737), // Happy peach
+        Color(red: 0.816, green: 0.910, blue: 0.957), // Normal blue
+        Color(red: 0.839, green: 0.910, blue: 0.702), // Peaceful green
+        Color(red: 0.980, green: 0.898, blue: 0.647), // Shy yellow
+        Color(red: 0.976, green: 0.753, blue: 0.792), // Tired pink
+        Color(red: 0.847, green: 0.761, blue: 0.914), // Sad purple
+        Color(red: 0.953, green: 0.580, blue: 0.529), // Angry red
     ]
 
     private var today: Date { Date() }
@@ -506,14 +555,26 @@ struct MoodCalendarCard: View {
         return (weekday - 2 + 7) % 7
     }
 
-    private var daysWithEntries: Set<Int> {
-        var days = Set<Int>()
+    private var entriesByDay: [Int: Accomplishment] {
+        var map: [Int: Accomplishment] = [:]
         for acc in accomplishments {
             if calendar.isDate(acc.createdAt, equalTo: today, toGranularity: .month) {
-                days.insert(calendar.component(.day, from: acc.createdAt))
+                let day = calendar.component(.day, from: acc.createdAt)
+                map[day] = acc
             }
         }
-        return days
+        return map
+    }
+
+    private var daysWithEntries: Set<Int> {
+        Set(entriesByDay.keys)
+    }
+
+    private func colorForDay(_ day: Int) -> Color {
+        if let acc = entriesByDay[day], let mood = acc.mood {
+            return mood.color
+        }
+        return Self.fallbackMoodColors[day % Self.fallbackMoodColors.count]
     }
 
     private var entryCount: Int {
@@ -582,7 +643,7 @@ struct MoodCalendarCard: View {
                                     if hasEntry {
                                         // Mood circle with color
                                         Circle()
-                                            .fill(Self.moodColors[day % Self.moodColors.count])
+                                            .fill(colorForDay(day))
                                             .frame(width: 20, height: 20)
                                     } else if isFutureDay {
                                         // Future: empty outlined circle

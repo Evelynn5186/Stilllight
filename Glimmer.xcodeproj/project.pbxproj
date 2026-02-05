@@ -18,6 +18,8 @@
 		E91234740001 /* SplashView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E91234750001 /* SplashView.swift */; };
 		E91234760001 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E91234770001 /* SettingsView.swift */; };
 		E91234780001 /* AccountView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E91234790001 /* AccountView.swift */; };
+		E912347B0001 /* ReminderView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E912347A0001 /* ReminderView.swift */; };
+		E912347D0001 /* SafetyView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E912347C0001 /* SafetyView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -33,6 +35,8 @@
 		E91234750001 /* SplashView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SplashView.swift; sourceTree = "<group>"; };
 		E91234770001 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
 		E91234790001 /* AccountView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccountView.swift; sourceTree = "<group>"; };
+		E912347A0001 /* ReminderView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReminderView.swift; sourceTree = "<group>"; };
+		E912347C0001 /* SafetyView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SafetyView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -72,6 +76,8 @@
 				E91234750001 /* SplashView.swift */,
 				E91234770001 /* SettingsView.swift */,
 				E91234790001 /* AccountView.swift */,
+				E912347A0001 /* ReminderView.swift */,
+				E912347C0001 /* SafetyView.swift */,
 				E912345F0001 /* Accomplishment.swift */,
 				E91234590001 /* Assets.xcassets */,
 				E912345B0001 /* Preview Content */,
@@ -167,6 +173,8 @@
 				E91234740001 /* SplashView.swift in Sources */,
 				E91234760001 /* SettingsView.swift in Sources */,
 				E91234780001 /* AccountView.swift in Sources */,
+				E912347B0001 /* ReminderView.swift in Sources */,
+				E912347D0001 /* SafetyView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
