@@ -45,14 +45,15 @@ struct HomeView: View {
         ZStack {
             // Background - changes based on state
             if pauseCheckIns {
-                // Sleep Mode: dark navy gradient
+                // Sleep Mode: dark navy gradient (170.8deg)
                 LinearGradient(
-                    colors: [
-                        Color(red: 0.047, green: 0.067, blue: 0.145), // #0C1125
-                        Color(red: 0.094, green: 0.129, blue: 0.251)  // #182140
+                    stops: [
+                        .init(color: Color(red: 0.047, green: 0.067, blue: 0.145), location: 0.112), // #0C1125
+                        .init(color: Color(red: 0.078, green: 0.106, blue: 0.220), location: 0.837), // #141B38
+                        .init(color: Color(red: 0.094, green: 0.129, blue: 0.251), location: 0.912)  // #182140
                     ],
-                    startPoint: .top,
-                    endPoint: .bottom
+                    startPoint: UnitPoint(x: 0.42, y: 0.0),
+                    endPoint: UnitPoint(x: 0.58, y: 1.0)
                 )
                 .ignoresSafeArea()
             } else if isLongtimeNoVisit {
@@ -72,16 +73,17 @@ struct HomeView: View {
                 // Warm cream/yellow gradient for checked-in and input mode
                 LinearGradient(
                     stops: [
-                        .init(color: Color(red: 0.976, green: 0.929, blue: 0.757), location: 0.32),
-                        .init(color: Color(red: 0.980, green: 0.929, blue: 0.757), location: 0.80)
+                        .init(color: Color(red: 0.96, green: 0.9, blue: 0.75), location: 0.00),
+                        .init(color: Color(red: 0.95, green: 0.87, blue: 0.64), location: 0.71),
                     ],
-                    startPoint: .top,
-                    endPoint: .bottom
+                    startPoint: UnitPoint(x: 0.5, y: 0.32),
+                    endPoint: UnitPoint(x: 0.5, y: 1)
                 )
                 .ignoresSafeArea()
             } else {
-                // Dark gradient (ball off)
+                // Unchecked state: 两组背景渐变 + 图片一起呼吸变化
                 ZStack {
+                    // 第一组：球暗时的背景 (和 Lightdown 图片配合)
                     LinearGradient(
                         stops: [
                             .init(color: Color(red: 0.07, green: 0.09, blue: 0.11), location: 0.00),
@@ -92,7 +94,7 @@ struct HomeView: View {
                         endPoint: UnitPoint(x: 0.88, y: 0.85)
                     )
 
-                    // Glow gradient (ball on) layered on top
+                    // 第二组：球亮时的背景 (和 LightdownHover 图片配合)
                     LinearGradient(
                         stops: [
                             .init(color: Color(red: 0.07, green: 0.09, blue: 0.11), location: 0.00),
@@ -107,23 +109,29 @@ struct HomeView: View {
                 .ignoresSafeArea()
             }
 
+            // Fixed Lightup4 character image (locked to background)
+            if showGlimmerInput {
+                VStack {
+                    Image("Lightup4")
+                        .resizable()
+                        .scaledToFit()
+                        .frame(width: 300, height: 300)
+                        .padding(.top, 11)
+                    Spacer()
+                }
+            }
+
+            // Checked-in state: Lightup6 character + Gather button
+            if hasCheckedInToday && !pauseCheckIns && !showGlimmerInput {
+                checkedInContent
+            }
+
             if pauseCheckIns {
                 sleepModeContent
             } else if showGlimmerInput {
                 glimmerInputContent
             } else {
                 normalContent
-            }
-
-            // Glimmer overlay
-            if showGlimmerOverlay {
-                GlimmerOverlay(
-                    accomplishment: selectedGlimmer,
-                    isPresented: $showGlimmerOverlay
-                )
-                .onTapGesture {
-                    showGlimmerOverlay = false
-                }
             }
 
             // Encouragement overlay
@@ -135,11 +143,22 @@ struct HomeView: View {
                     }
                 )
             }
+
+            // Glimmer overlay (for "Gather a little light")
+            if showGlimmerOverlay {
+                GlimmerOverlay(
+                    accomplishment: selectedGlimmer,
+                    isPresented: $showGlimmerOverlay
+                )
+                .onTapGesture {
+                    showGlimmerOverlay = false
+                }
+            }
         }
+        .animation(.easeInOut(duration: 0.35), value: showGlimmerOverlay)
         .animation(.easeInOut(duration: 0.6), value: hasCheckedInToday)
         .animation(.easeInOut(duration: 0.6), value: pauseCheckIns)
         .animation(.easeInOut(duration: 0.5), value: showGlimmerInput)
-        .animation(.easeInOut(duration: 0.35), value: showGlimmerOverlay)
         .animation(.easeInOut(duration: 0.3), value: showEncouragement)
         .onAppear {
             checkTodayStatus()
@@ -149,46 +168,114 @@ struct HomeView: View {
     // MARK: - Sleep Mode Content
 
     private var sleepModeContent: some View {
-        VStack(spacing: 0) {
-            Spacer()
-
-            // Badge pill
-            Text("Tap the light to resume.")
-                .font(.custom("Urbanist", size: 14).weight(.medium))
-                .foregroundColor(Color(red: 0.855, green: 0.855, blue: 0.855)) // #DADADA
-                .padding(.horizontal, 12)
-                .padding(.vertical, 6)
-                .overlay(
-                    Capsule()
-                        .stroke(Color(red: 0.855, green: 0.855, blue: 0.855).opacity(0.4), lineWidth: 0.68)
+        ZStack {
+            // Sleep character image (469×704, left: -37, top: 100)
+            GeometryReader { geo in
+                Button(action: {
+                    pauseCheckIns = false
+                }) {
+                    Rectangle()
+                        .foregroundColor(.clear)
+                        .frame(width: 469, height: 704)
+                        .background(
+                            Image("SleepCharacter")
+                                .resizable()
+                                .aspectRatio(contentMode: .fill)
+                                .frame(width: 449, height: 704)
+                                .clipped()
+                        )
+                }
+                .buttonStyle(LightUpButtonStyle())
+                .position(
+                    x: -37 + 469 / 2,
+                    y: 100 + 704 / 2
                 )
-                .padding(.bottom, 24)
-
-            // Character image - tappable to resume
-            Button(action: {
-                pauseCheckIns = false
-            }) {
-                Image("Lightup4")
-                    .resizable()
-                    .scaledToFit()
-                    .frame(maxWidth: 420, maxHeight: 420)
-                    .opacity(0.6)
             }
-            .buttonStyle(LightUpButtonStyle())
+            .ignoresSafeArea()
 
-            // Message
-            Text("The light stays on quietly\nholding your place.")
-                .font(.custom("Urbanist", size: 20).weight(.medium))
-                .foregroundColor(.white)
+            VStack(spacing: 0) {
+                // Badge pill at top: 228
+                Spacer().frame(height: 228)
+
+                Text("Tap the light to resume.")
+                    .font(.custom("Urbanist", size: 14).weight(.medium))
+                    .foregroundColor(Color(red: 0.659, green: 0.635, blue: 0.624)) // #A8A29E
+                    .tracking(-0.084)
+                    .padding(.horizontal, 20)
+                    .padding(.vertical, 12)
+                    .overlay(
+                        Capsule()
+                            .stroke(Color(red: 0.659, green: 0.635, blue: 0.624), lineWidth: 0.676)
+                    )
+
+                Spacer()
+
+                // Message at top: 622
+                VStack(spacing: 0) {
+                    Text("The light stays on")
+                        .font(.custom("Urbanist", size: 20).weight(.medium))
+                        .foregroundColor(Color(red: 0.855, green: 0.855, blue: 0.855)) // #DADADA
+                    Text(" ")
+                        .font(.system(size: 14))
+                    Text("quietly holding your place.")
+                        .font(.custom("Urbanist", size: 20).weight(.medium))
+                        .foregroundColor(Color(red: 0.855, green: 0.855, blue: 0.855))
+                }
                 .multilineTextAlignment(.center)
-                .lineSpacing(4)
-                .padding(.top, 16)
 
-            Spacer()
+                Spacer()
 
-            Color.clear.frame(height: 120)
+                Color.clear.frame(height: 100)
+            }
         }
-        .padding(.horizontal, 24)
+    }
+
+    // MARK: - Checked In Content
+
+    private var checkedInContent: some View {
+        ZStack {
+            // Lightup6 character image (454×454, top: 202, left: -15)
+            GeometryReader { geo in
+                Rectangle()
+                    .foregroundColor(.clear)
+                    .frame(width: 454, height: 454)
+                    .background(
+                        Image("Lightup6")
+                            .resizable()
+                            .aspectRatio(contentMode: .fill)
+                            .frame(width: 454, height: 454)
+                            .clipped()
+                    )
+                    .position(
+                        x: -15 + 454 / 2,
+                        y: 202 + 454 / 2
+                    )
+            }
+            .ignoresSafeArea()
+
+            // "Gather a little light" button at bottom
+            VStack {
+                Spacer()
+
+                Button(action: catchGlimmer) {
+                    HStack(spacing: 8) {
+                        Image(systemName: "sparkle")
+                            .font(.system(size: 16, weight: .medium))
+                        Text("Gather a little light")
+                            .font(.custom("Urbanist", size: 16).weight(.medium))
+                    }
+                    .foregroundColor(.white)
+                    .padding(.horizontal, 20)
+                    .padding(.vertical, 14)
+                    .background(
+                        Capsule()
+                            .fill(Color(red: 0.22, green: 0.10, blue: 0.01))
+                    )
+                }
+
+                Spacer().frame(height: 140)
+            }
+        }
     }
 
     // MARK: - Normal Content
@@ -202,10 +289,13 @@ struct HomeView: View {
                 Text("Tap the light to mark today.")
                     .font(.custom("Urbanist", size: 12).weight(.medium))
                     .foregroundColor(Color(red: 0.66, green: 0.64, blue: 0.62))
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 4)
+                    .padding(.horizontal, 8.11)
+                    .padding(.vertical, 4.06)
+                    .frame(width: 187, height: 29)
+                    .cornerRadius(6759.89)
                     .overlay(
-                        Capsule()
+                        RoundedRectangle(cornerRadius: 6759.89)
+                            .inset(by: 0.34)
                             .stroke(Color(red: 0.66, green: 0.64, blue: 0.62), lineWidth: 0.68)
                     )
                     .padding(.bottom, 32)
@@ -213,13 +303,8 @@ struct HomeView: View {
 
             // Character/Light illustration
             if hasCheckedInToday {
-                Button(action: {}) {
-                    Image("Lightup6")
-                        .resizable()
-                        .scaledToFit()
-                        .frame(maxWidth: 320, maxHeight: 380)
-                }
-                .buttonStyle(LightUpButtonStyle())
+                // Checked-in state uses absolute positioning
+                EmptyView()
             } else {
                 Button(action: { showGlimmerInput = true }) {
                     Color.clear
@@ -231,27 +316,8 @@ struct HomeView: View {
 
             Spacer()
 
-            // Bottom button area - only when checked in
-            if hasCheckedInToday {
-                Button(action: catchGlimmer) {
-                    HStack(spacing: 6) {
-                        Image(systemName: "sparkles")
-                            .font(.system(size: 14, weight: .medium))
-                        Text("Gather a little light")
-                            .font(.custom("Urbanist", size: 14).weight(.medium))
-                    }
-                    .foregroundColor(Color(red: 0.29, green: 0.29, blue: 0.29))
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 6)
-                    .background(
-                        Capsule()
-                            .stroke(Color(red: 0.29, green: 0.29, blue: 0.29), lineWidth: 0.5)
-                    )
-                }
-                .padding(.bottom, 120)
-            } else {
-                Color.clear.frame(height: 120)
-            }
+            // Bottom spacer for tab bar
+            Color.clear.frame(height: 120)
         }
         .padding(.horizontal, 24)
     }
@@ -261,12 +327,8 @@ struct HomeView: View {
     private var glimmerInputContent: some View {
         ScrollView {
             VStack(spacing: 0) {
-                // Lightup4 character image at top
-                Image("Lightup4")
-                    .resizable()
-                    .scaledToFit()
-                    .frame(width: 300, height: 300)
-                    .padding(.top, 11)
+                // Transparent spacer so the fixed character image is visible
+                Color.clear.frame(height: 310)
 
                 // Close button
                 Button(action: dismissInput) {
@@ -280,138 +342,155 @@ struct HomeView: View {
                         )
                         .shadow(color: Color(red: 0.98, green: 0.93, blue: 0.76).opacity(0.5), radius: 4, x: 0, y: 3.2)
                 }
-                .padding(.top, 0)
 
-                // "How are you feeling today?"
-                Text("How are you feeling today?")
-                    .font(.custom("Libre Baskerville", size: 16))
-                    .foregroundColor(themeBrown)
-                    .tracking(-0.192)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(.top, 24)
-                    .padding(.horizontal, 28)
+                // Form content
+                VStack(spacing: 0) {
+                    // "How are you feeling today?"
+                    Text("How are you feeling today?")
+                        .font(.custom("Libre Baskerville", size: 16))
+                        .foregroundColor(themeBrown)
+                        .tracking(-0.192)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.top, 24)
 
-                // Mood selection bar
-                inlineMoodBar
-                    .padding(.top, 12)
-                    .padding(.horizontal, 28)
+                    // Mood selection bar
+                    inlineMoodBar
+                        .padding(.top, 12)
 
-                // "Where did the light show up today?"
-                Text("Where did the light show up today?")
-                    .font(.custom("Libre Baskerville", size: 16))
-                    .foregroundColor(themeBrown)
-                    .tracking(-0.192)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(.top, 24)
-                    .padding(.horizontal, 28)
+                    // "Where did the light show up today?"
+                    Text("Where did the light show up today?")
+                        .font(.custom("Libre Baskerville", size: 16))
+                        .foregroundColor(themeBrown)
+                        .tracking(-0.192)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.top, 24)
 
-                // Input section
-                VStack(alignment: .leading, spacing: 8) {
-                    // Sparkle + label
-                    HStack(spacing: 6) {
-                        Image("Sparkle4")
-                            .resizable()
-                            .frame(width: 18, height: 18)
-                        Text("A trace of light…")
-                            .font(.custom("Urbanist", size: 14).weight(.semibold))
+                    // Input section
+                    VStack(alignment: .leading, spacing: 8) {
+                        // Sparkle + label
+                        HStack(spacing: 6) {
+                            Image("Sparkle4")
+                                .resizable()
+                                .frame(width: 18, height: 18)
+                            Text("A trace of light…")
+                                .font(.custom("Urbanist", size: 14).weight(.semibold))
+                                .foregroundColor(themeBrown)
+                                .tracking(-0.084)
+                        }
+
+                        // Text input area
+                        ZStack(alignment: .topLeading) {
+                            TextEditor(text: $glimmerText)
+                                .font(.custom("Urbanist", size: 14))
+                                .foregroundColor(themeBrown)
+                                .scrollContentBackground(.hidden)
+                                .padding(12)
+                                .frame(minHeight: 120, maxHeight: 160)
+                                .background(
+                                    RoundedRectangle(cornerRadius: 24)
+                                        .fill(Color.white)
+                                        .overlay(
+                                            RoundedRectangle(cornerRadius: 24)
+                                                .stroke(borderColor, lineWidth: 1)
+                                        )
+                                )
+                                .focused($isTextFieldFocused)
+                                .onChange(of: speechRecognizer.transcript) {
+                                    if !speechRecognizer.transcript.isEmpty {
+                                        glimmerText = speechRecognizer.transcript
+                                    }
+                                }
+                                .onChange(of: glimmerText) {
+                                    if glimmerText.count > maxCharacters {
+                                        glimmerText = String(glimmerText.prefix(maxCharacters))
+                                    }
+                                }
+
+                            // Placeholder
+                            if glimmerText.isEmpty {
+                                Text("Ex. Video chatted with an old friend; Had a really good meal with a friend.")
+                                    .font(.custom("Urbanist", size: 14))
+                                    .foregroundColor(themeBrown.opacity(0.5))
+                                    .padding(12)
+                                    .padding(.top, 8)
+                                    .allowsHitTesting(false)
+                            }
+                        }
+
+                        // Character count + mic
+                        HStack {
+                            Spacer()
+                            Text("\(glimmerText.count)/\(maxCharacters)")
+                                .font(.custom("Urbanist", size: 12))
+                                .foregroundColor(Color(red: 0.659, green: 0.635, blue: 0.624))
+                                .tracking(-0.06)
+
+                            Button(action: toggleRecording) {
+                                Image(systemName: speechRecognizer.isRecording ? "mic.fill" : "mic")
+                                    .font(.system(size: 10))
+                                    .foregroundColor(speechRecognizer.isRecording ? .white : Color(red: 0.659, green: 0.635, blue: 0.624))
+                                    .frame(width: 11, height: 11)
+                            }
+                        }
+
+                        // Helper text
+                        Text("It can be something small. Just a few words is enough.")
+                            .font(.custom("Urbanist", size: 14))
                             .foregroundColor(themeBrown)
                             .tracking(-0.084)
                     }
+                    .padding(.top, 4)
 
-                    // Text input area
-                    ZStack(alignment: .topLeading) {
-                        TextEditor(text: $glimmerText)
-                            .font(.custom("Urbanist", size: 14))
-                            .foregroundColor(themeBrown)
-                            .scrollContentBackground(.hidden)
-                            .padding(12)
-                            .frame(minHeight: 120, maxHeight: 160)
-                            .background(
-                                RoundedRectangle(cornerRadius: 24)
-                                    .fill(Color.white)
-                                    .overlay(
-                                        RoundedRectangle(cornerRadius: 24)
-                                            .stroke(borderColor, lineWidth: 1)
-                                    )
-                            )
-                            .focused($isTextFieldFocused)
-                            .onChange(of: speechRecognizer.transcript) {
-                                if !speechRecognizer.transcript.isEmpty {
-                                    glimmerText = speechRecognizer.transcript
-                                }
-                            }
-                            .onChange(of: glimmerText) {
-                                if glimmerText.count > maxCharacters {
-                                    glimmerText = String(glimmerText.prefix(maxCharacters))
-                                }
-                            }
-
-                        // Placeholder
-                        if glimmerText.isEmpty {
-                            Text("Ex. Video chatted with an old friend; Had a really good meal with a friend.")
+                    // Submit button
+                    Button(action: submitGlimmer) {
+                        HStack {
+                            Text("This moment is kept.")
                                 .font(.custom("Urbanist", size: 14))
-                                .foregroundColor(themeBrown.opacity(0.5))
-                                .padding(12)
-                                .padding(.top, 8)
-                                .allowsHitTesting(false)
+                                .tracking(-0.14)
+
+                            Spacer()
+
+                            Image(systemName: "chevron.right")
+                                .font(.system(size: 14, weight: .medium))
+                                .foregroundColor(.white.opacity(0.6))
                         }
+                        .foregroundColor(.white)
+                        .padding(.horizontal, 24)
+                        .padding(.vertical, 21)
+                        .frame(maxWidth: .infinity)
+                        .background(
+                            RoundedRectangle(cornerRadius: 30)
+                                .fill(
+                                    glimmerText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                                        ? themeBrown.opacity(0.3)
+                                        : themeBrown
+                                )
+                        )
                     }
-
-                    // Character count + mic
-                    HStack {
-                        Spacer()
-                        Text("\(glimmerText.count)/\(maxCharacters)")
-                            .font(.custom("Urbanist", size: 12))
-                            .foregroundColor(Color(red: 0.659, green: 0.635, blue: 0.624))
-                            .tracking(-0.06)
-
-                        Button(action: toggleRecording) {
-                            Image(systemName: speechRecognizer.isRecording ? "mic.fill" : "mic")
-                                .font(.system(size: 10))
-                                .foregroundColor(speechRecognizer.isRecording ? .white : Color(red: 0.659, green: 0.635, blue: 0.624))
-                                .frame(width: 11, height: 11)
-                        }
-                    }
-
-                    // Helper text
-                    Text("It can be something small. Just a few words is enough.")
-                        .font(.custom("Urbanist", size: 14))
-                        .foregroundColor(themeBrown)
-                        .tracking(-0.084)
+                    .disabled(glimmerText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                    .padding(.top, 24)
+                    .padding(.bottom, 140)
                 }
-                .padding(.top, 4)
                 .padding(.horizontal, 28)
-
-                // Submit button
-                Button(action: submitGlimmer) {
-                    HStack {
-                        Text("This moment is kept.")
-                            .font(.custom("Urbanist", size: 14))
-                            .tracking(-0.14)
-
-                        Spacer()
-
-                        Image(systemName: "chevron.right")
-                            .font(.system(size: 14, weight: .medium))
-                            .foregroundColor(.white.opacity(0.6))
-                    }
-                    .foregroundColor(.white)
-                    .padding(.horizontal, 24)
-                    .padding(.vertical, 21)
-                    .frame(maxWidth: .infinity)
-                    .background(
-                        RoundedRectangle(cornerRadius: 30)
-                            .fill(
-                                glimmerText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-                                    ? themeBrown.opacity(0.3)
-                                    : themeBrown
+                .background(
+                    // Union decorative gradient (scrolls with form)
+                    UnionShape()
+                        .fill(
+                            LinearGradient(
+                                stops: [
+                                    .init(color: Color(red: 0.84, green: 0.91, blue: 1.0), location: 0.00),
+                                    .init(color: Color(red: 1.0, green: 0.98, blue: 0.93), location: 0.69),
+                                ],
+                                startPoint: .leading,
+                                endPoint: .trailing
                             )
-                    )
-                }
-                .disabled(glimmerText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-                .padding(.horizontal, 28)
-                .padding(.top, 24)
-                .padding(.bottom, 140)
+                        )
+                        .frame(width: 560, height: 662)
+                        .shadow(color: Color(red: 1.0, green: 0.88, blue: 0.55), radius: 7.5, x: 0, y: -8)
+                        .opacity(0.7)
+                        .offset(y: -30)
+                    , alignment: .top
+                )
             }
         }
         .scrollIndicators(.hidden)
@@ -563,14 +642,11 @@ struct HomeView: View {
     }
 
     private func catchGlimmer() {
-        if accomplishments.isEmpty {
-            selectedGlimmer = nil
-        } else {
-            selectedGlimmer = accomplishments.randomElement()
-        }
+        selectedGlimmer = accomplishments.isEmpty ? nil : accomplishments.randomElement()
         showGlimmerOverlay = true
         UIImpactFeedbackGenerator(style: .soft).impactOccurred()
     }
+
 }
 
 // MARK: - Light Up Button Style (touched_mode press effect)
@@ -712,6 +788,26 @@ struct GlimmerOverlay: View {
         }
 
         return formatter.string(from: date)
+    }
+}
+
+// MARK: - Union Shape (curved top decorative background)
+
+struct UnionShape: Shape {
+    func path(in rect: CGRect) -> Path {
+        var path = Path()
+        let curveHeight: CGFloat = rect.height * 0.1
+
+        path.move(to: CGPoint(x: 0, y: curveHeight))
+        path.addQuadCurve(
+            to: CGPoint(x: rect.width, y: curveHeight),
+            control: CGPoint(x: rect.width / 2, y: 0)
+        )
+        path.addLine(to: CGPoint(x: rect.width, y: rect.height))
+        path.addLine(to: CGPoint(x: 0, y: rect.height))
+        path.closeSubpath()
+
+        return path
     }
 }
 

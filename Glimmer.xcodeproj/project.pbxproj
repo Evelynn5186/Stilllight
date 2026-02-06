@@ -3,16 +3,16 @@
 	archiveVersion = 1;
 	classes = {
 	};
-	objectVersion = 56;
+	objectVersion = 70;
 	objects = {
 
 /* Begin PBXBuildFile section */
+		18918F0A2F2996C4004F34BD /* SpeechRecognizer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 18918F092F2996C4004F34BD /* SpeechRecognizer.swift */; };
 		E91234560001 /* GlimmerApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = E91234550001 /* GlimmerApp.swift */; };
 		E91234580001 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E91234570001 /* ContentView.swift */; };
 		E912345A0001 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = E91234590001 /* Assets.xcassets */; };
 		E912345D0001 /* Preview Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = E912345C0001 /* Preview Assets.xcassets */; };
 		E91234600001 /* Accomplishment.swift in Sources */ = {isa = PBXBuildFile; fileRef = E912345F0001 /* Accomplishment.swift */; };
-		18918F0A2F2996C4004F34BD /* SpeechRecognizer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 18918F092F2996C4004F34BD /* SpeechRecognizer.swift */; };
 		E91234700001 /* HomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E91234710001 /* HomeView.swift */; };
 		E91234720001 /* GlimmerInputView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E91234730001 /* GlimmerInputView.swift */; };
 		E91234740001 /* SplashView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E91234750001 /* SplashView.swift */; };
@@ -39,6 +39,10 @@
 		E912347C0001 /* SafetyView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SafetyView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
+/* Begin PBXFileSystemSynchronizedRootGroup section */
+		18C5FEC32F36897100BD4AD6 /* Fonts */ = {isa = PBXFileSystemSynchronizedRootGroup; explicitFileTypes = {}; explicitFolders = (); name = Fonts; path = Glimmer/Fonts; sourceTree = "<group>"; };
+/* End PBXFileSystemSynchronizedRootGroup section */
+
 /* Begin PBXFrameworksBuildPhase section */
 		E912344F0001 /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
@@ -53,6 +57,7 @@
 		E91234490001 = {
 			isa = PBXGroup;
 			children = (
+				18C5FEC32F36897100BD4AD6 /* Fonts */,
 				E91234540001 /* Glimmer */,
 				E91234530001 /* Products */,
 			);
@@ -108,6 +113,9 @@
 			buildRules = (
 			);
 			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				18C5FEC32F36897100BD4AD6 /* Fonts */,
 			);
 			name = Glimmer;
 			productName = Glimmer;

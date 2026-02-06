@@ -197,7 +197,7 @@ struct JournalView: View {
     @Environment(\.modelContext) private var modelContext
     @Query(sort: \Accomplishment.createdAt, order: .reverse) private var accomplishments: [Accomplishment]
 
-    @State private var showGlimmerOverlay = false
+    @State private var isCardFlipped = false
     @State private var selectedGlimmer: Accomplishment?
 
     private let bgColor = Color(red: 0.969, green: 0.953, blue: 0.937)
@@ -208,9 +208,13 @@ struct JournalView: View {
 
             ScrollView {
                 VStack(spacing: 16) {
-                    // Gather a Little Light card
-                    GatherLightCard(action: catchGlimmer)
-                        .padding(.top, 8)
+                    // Gather a Little Light card (with flip support)
+                    GatherLightFlipCard(
+                        isFlipped: $isCardFlipped,
+                        accomplishment: selectedGlimmer,
+                        onGather: catchGlimmer
+                    )
+                    .padding(.top, 8)
 
                     // Week strip
                     WeekStripView(accomplishments: accomplishments)
@@ -226,29 +230,194 @@ struct JournalView: View {
                 .padding(.top, 16)
             }
             .scrollIndicators(.hidden)
-
-            // Glimmer overlay
-            if showGlimmerOverlay {
-                GlimmerOverlay(
-                    accomplishment: selectedGlimmer,
-                    isPresented: $showGlimmerOverlay
-                )
-                .onTapGesture {
-                    showGlimmerOverlay = false
-                }
-            }
         }
-        .animation(.easeInOut(duration: 0.35), value: showGlimmerOverlay)
     }
 
     private func catchGlimmer() {
         selectedGlimmer = accomplishments.isEmpty ? nil : accomplishments.randomElement()
-        showGlimmerOverlay = true
+        withAnimation(.easeInOut(duration: 0.4)) {
+            isCardFlipped = true
+        }
         UIImpactFeedbackGenerator(style: .soft).impactOccurred()
     }
 }
 
-// MARK: - Gather a Little Light Card
+// MARK: - Gather a Little Light Flip Card (Journal Page)
+
+struct GatherLightFlipCard: View {
+    @Binding var isFlipped: Bool
+    let accomplishment: Accomplishment?
+    let onGather: () -> Void
+
+    private let themeBrown = Color(red: 0.325, green: 0.212, blue: 0.188)
+    private let cardBlue = Color(red: 0.84, green: 0.91, blue: 1.0)
+
+    private let insights = [
+        "Simple moments can still mean something.",
+        "You noticed the light. That's enough.",
+        "This was worth holding onto.",
+        "The small things carry the most warmth.",
+        "You showed up, and that matters.",
+        "Every glimmer adds to the whole.",
+    ]
+
+    private var insight: String {
+        let day = Calendar.current.component(.day, from: Date())
+        return insights[day % insights.count]
+    }
+
+    var body: some View {
+        ZStack {
+            // Front of card (before flip)
+            frontCard
+                .opacity(isFlipped ? 0 : 1)
+                .rotation3DEffect(
+                    .degrees(isFlipped ? 180 : 0),
+                    axis: (x: 0, y: 1, z: 0)
+                )
+
+            // Back of card (after flip)
+            backCard
+                .opacity(isFlipped ? 1 : 0)
+                .rotation3DEffect(
+                    .degrees(isFlipped ? 0 : -180),
+                    axis: (x: 0, y: 1, z: 0)
+                )
+        }
+        .padding(.horizontal, 32)
+    }
+
+    private var frontCard: some View {
+        VStack(spacing: 0) {
+            // Gradient button
+            Button(action: onGather) {
+                HStack(spacing: 8) {
+                    Image(systemName: "sparkle")
+                        .font(.system(size: 20, weight: .medium))
+                    Text("Gather a little light")
+                        .font(.custom("Urbanist", size: 20).weight(.medium))
+                }
+                .foregroundColor(.white)
+                .padding(.horizontal, 20)
+                .padding(.vertical, 18)
+                .frame(maxWidth: .infinity)
+                .background(
+                    Capsule()
+                        .fill(LinearGradient(
+                                        colors: [
+                                            Color(red: 0.224, green: 0.098, blue: 0.012),
+                                            Color(red: 0.588, green: 0.361, blue: 0.035)
+                                        ],
+                                        startPoint: .leading,
+                                        endPoint: .trailing
+                                    ))
+                )
+            }
+            .padding(.horizontal, 20)
+            .padding(.top, 32)
+
+            // Description text
+            VStack(spacing: 2) {
+                Text("Rediscover a moment with us:")
+                Text("We'll bring back a moment you once shared,")
+                Text("along with a thoughtful reflection from us.")
+            }
+            .font(.custom("Urbanist", size: 14))
+            .foregroundColor(Color(red: 0.33, green: 0.21, blue: 0.19))
+            .multilineTextAlignment(.center)
+            .padding(.horizontal, 20)
+            .padding(.top, 20)
+            .padding(.bottom, 24)
+        }
+        .frame(height: 218)
+        .background(
+            RoundedRectangle(cornerRadius: 24)
+                .fill(Color.white)
+        )
+    }
+
+    private var backCard: some View {
+        VStack(spacing: 0) {
+            // Blue inner card with glimmer content
+            VStack(spacing: 12) {
+                if let accomplishment = accomplishment {
+                    // Glimmer text
+                    Text("\u{201C}" + accomplishment.text + "\u{201D}")
+                        .font(.custom("Baskerville", size: 15))
+                        .foregroundColor(themeBrown)
+                        .multilineTextAlignment(.center)
+                        .lineSpacing(4)
+                        .fixedSize(horizontal: false, vertical: true)
+
+                    // Timestamp
+                    Text(formattedDate(accomplishment.createdAt))
+                        .font(.custom("Urbanist", size: 10))
+                        .foregroundColor(themeBrown.opacity(0.5))
+                } else {
+                    Text("Keep collecting glimmers,\nthey'll be here waiting for you.")
+                        .font(.custom("Urbanist", size: 14))
+                        .foregroundColor(themeBrown.opacity(0.7))
+                        .multilineTextAlignment(.center)
+                        .lineSpacing(4)
+                }
+            }
+            .padding(20)
+            .frame(maxWidth: .infinity)
+            .background(
+                RoundedRectangle(cornerRadius: 16)
+                    .fill(cardBlue)
+            )
+            .padding(.horizontal, 16)
+            .padding(.top, 16)
+
+            // Encouraging message
+            Text(insight)
+                .font(.custom("Urbanist", size: 12))
+                .foregroundColor(themeBrown.opacity(0.6))
+                .italic()
+                .multilineTextAlignment(.center)
+                .padding(.horizontal, 20)
+                .padding(.top, 12)
+                .padding(.bottom, 16)
+
+            // Tap to flip back
+            Button(action: {
+                withAnimation(.easeInOut(duration: 0.4)) {
+                    isFlipped = false
+                }
+            }) {
+                Text("Tap to gather another")
+                    .font(.custom("Urbanist", size: 12).weight(.medium))
+                    .foregroundColor(themeBrown.opacity(0.5))
+            }
+            .padding(.bottom, 16)
+        }
+        .frame(height: 218)
+        .background(
+            RoundedRectangle(cornerRadius: 24)
+                .fill(Color.white)
+        )
+    }
+
+    private func formattedDate(_ date: Date) -> String {
+        let formatter = DateFormatter()
+        let calendar = Calendar.current
+
+        if calendar.isDateInToday(date) {
+            formatter.dateFormat = "'Today at' h:mm a"
+        } else if calendar.isDateInYesterday(date) {
+            formatter.dateFormat = "'Yesterday at' h:mm a"
+        } else if calendar.isDate(date, equalTo: Date(), toGranularity: .year) {
+            formatter.dateFormat = "MMM d 'at' h:mm a"
+        } else {
+            formatter.dateFormat = "MMM d, yyyy"
+        }
+
+        return formatter.string(from: date)
+    }
+}
+
+// MARK: - Gather a Little Light Card (for other use)
 
 struct GatherLightCard: View {
     let action: () -> Void
@@ -338,15 +507,12 @@ struct WeekStripView: View {
         if let entry = entryForDate(date), let mood = entry.mood {
             return mood.color
         }
-        // Fallback colors when no mood is set
-        let day = calendar.component(.day, from: date)
-        let fallbackColors: [Color] = [
-            Color(red: 0.839, green: 0.910, blue: 0.702),
-            Color(red: 0.988, green: 0.804, blue: 0.737),
-            Color(red: 0.984, green: 0.749, blue: 0.141),
-            Color(red: 0.698, green: 0.663, blue: 0.749),
-        ]
-        return fallbackColors[day % fallbackColors.count]
+        // Light warm color for entries without mood
+        return Color(red: 0.98, green: 0.93, blue: 0.76)
+    }
+
+    private func moodFor(date: Date) -> Mood? {
+        return entryForDate(date)?.mood
     }
 
     var body: some View {
@@ -380,13 +546,20 @@ struct WeekStripView: View {
                     )
                     .opacity(isFuture ? 0.7 : 1.0)
 
-                    // Mood dot
+                    // Mood indicator
                     if hasLog && !isToday {
-                        Circle()
-                            .fill(moodColor(for: date))
-                            .frame(width: 4, height: 4)
+                        if let mood = moodFor(date: date) {
+                            // Show mood emoji
+                            MoodEmojiView(mood: mood, size: 12)
+                                .frame(width: 14, height: 14)
+                        } else {
+                            // No mood selected - pure light dot
+                            Circle()
+                                .fill(moodColor(for: date))
+                                .frame(width: 6, height: 6)
+                        }
                     } else {
-                        Color.clear.frame(width: 4, height: 4)
+                        Color.clear.frame(width: 14, height: 14)
                     }
                 }
                 .frame(maxWidth: .infinity)
@@ -574,7 +747,12 @@ struct MoodCalendarCard: View {
         if let acc = entriesByDay[day], let mood = acc.mood {
             return mood.color
         }
-        return Self.fallbackMoodColors[day % Self.fallbackMoodColors.count]
+        // Light warm color for entries without mood
+        return Color(red: 0.98, green: 0.93, blue: 0.76)
+    }
+
+    private func moodForDay(_ day: Int) -> Mood? {
+        return entriesByDay[day]?.mood
     }
 
     private var entryCount: Int {
@@ -641,10 +819,20 @@ struct MoodCalendarCard: View {
                                         .foregroundColor(gray60)
 
                                     if hasEntry {
-                                        // Mood circle with color
-                                        Circle()
-                                            .fill(colorForDay(day))
-                                            .frame(width: 20, height: 20)
+                                        // Mood circle with emoji or plain light circle
+                                        if let mood = moodForDay(day) {
+                                            ZStack {
+                                                Circle()
+                                                    .fill(mood.color)
+                                                    .frame(width: 20, height: 20)
+                                                MoodEmojiView(mood: mood, size: 16)
+                                            }
+                                        } else {
+                                            // No mood selected - pure light circle
+                                            Circle()
+                                                .fill(colorForDay(day))
+                                                .frame(width: 20, height: 20)
+                                        }
                                     } else if isFutureDay {
                                         // Future: empty outlined circle
                                         Circle()
