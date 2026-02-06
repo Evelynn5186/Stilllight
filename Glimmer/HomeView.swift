@@ -45,15 +45,15 @@ struct HomeView: View {
         ZStack {
             // Background - changes based on state
             if pauseCheckIns {
-                // Sleep Mode: dark navy gradient (170.8deg)
+                // Sleep Mode: dark navy gradient
                 LinearGradient(
                     stops: [
-                        .init(color: Color(red: 0.047, green: 0.067, blue: 0.145), location: 0.112), // #0C1125
-                        .init(color: Color(red: 0.078, green: 0.106, blue: 0.220), location: 0.837), // #141B38
-                        .init(color: Color(red: 0.094, green: 0.129, blue: 0.251), location: 0.912)  // #182140
+                        .init(color: Color(red: 0.05, green: 0.07, blue: 0.15), location: 0.00),
+                        .init(color: Color(red: 0.08, green: 0.11, blue: 0.22), location: 0.82),
+                        .init(color: Color(red: 0.09, green: 0.13, blue: 0.25), location: 0.90),
                     ],
-                    startPoint: UnitPoint(x: 0.42, y: 0.0),
-                    endPoint: UnitPoint(x: 0.58, y: 1.0)
+                    startPoint: UnitPoint(x: 0.62, y: 0.07),
+                    endPoint: UnitPoint(x: 0.95, y: 1)
                 )
                 .ignoresSafeArea()
             } else if isLongtimeNoVisit {
@@ -169,63 +169,53 @@ struct HomeView: View {
 
     private var sleepModeContent: some View {
         ZStack {
-            // Sleep character image (469×704, left: -37, top: 100)
+            // Sleep character image (缩小居中)
             GeometryReader { geo in
                 Button(action: {
                     pauseCheckIns = false
                 }) {
-                    Rectangle()
-                        .foregroundColor(.clear)
+                    Image("SleepCharacter")
+                        .resizable()
+                        .aspectRatio(contentMode: .fit)
                         .frame(width: 469, height: 704)
-                        .background(
-                            Image("SleepCharacter")
-                                .resizable()
-                                .aspectRatio(contentMode: .fill)
-                                .frame(width: 449, height: 704)
-                                .clipped()
-                        )
                 }
                 .buttonStyle(LightUpButtonStyle())
                 .position(
-                    x: -37 + 469 / 2,
-                    y: 100 + 704 / 2
+                    x: geo.size.width / 2,  // 居中偏左20pt
+                    y: 100 + 352                  // top: 100 + 半高
                 )
             }
             .ignoresSafeArea()
 
+            // UI overlay
             VStack(spacing: 0) {
-                // Badge pill at top: 228
-                Spacer().frame(height: 228)
+                Spacer().frame(height: 180)
 
+                // "Tap the light to resume." badge
                 Text("Tap the light to resume.")
                     .font(.custom("Urbanist", size: 14).weight(.medium))
-                    .foregroundColor(Color(red: 0.659, green: 0.635, blue: 0.624)) // #A8A29E
-                    .tracking(-0.084)
+                    .foregroundColor(Color(red: 0.659, green: 0.635, blue: 0.624))
                     .padding(.horizontal, 20)
-                    .padding(.vertical, 12)
+                    .padding(.vertical, 10)
                     .overlay(
                         Capsule()
-                            .stroke(Color(red: 0.659, green: 0.635, blue: 0.624), lineWidth: 0.676)
+                            .stroke(Color(red: 0.659, green: 0.635, blue: 0.624), lineWidth: 1)
                     )
 
                 Spacer()
 
-                // Message at top: 622
-                VStack(spacing: 0) {
+                // Bottom message
+                VStack(spacing: 4) {
                     Text("The light stays on")
                         .font(.custom("Urbanist", size: 20).weight(.medium))
-                        .foregroundColor(Color(red: 0.855, green: 0.855, blue: 0.855)) // #DADADA
-                    Text(" ")
-                        .font(.system(size: 14))
+                        .foregroundColor(Color(red: 0.855, green: 0.855, blue: 0.855))
                     Text("quietly holding your place.")
                         .font(.custom("Urbanist", size: 20).weight(.medium))
                         .foregroundColor(Color(red: 0.855, green: 0.855, blue: 0.855))
                 }
                 .multilineTextAlignment(.center)
 
-                Spacer()
-
-                Color.clear.frame(height: 100)
+                Spacer().frame(height: 140)
             }
         }
     }
