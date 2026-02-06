@@ -5,10 +5,9 @@
 	<key>UIAppFonts</key>
 	<array>
 		<string>Urbanist-Regular.ttf</string>
-		<string>Urbanist-Medium.ttf</string>
-		<string>Urbanist-SemiBold.ttf</string>
-		<string>Urbanist-Bold.ttf</string>
-		<string>LibreBaskerville-VariableFont_wght.ttf</string>
+		<string>Urbanist-Medium.ttf </string>
+		<string>Urbanist-Bold.ttf  </string>
+		<string>LibreBaskerville-VariableFont_wght.ttf        </string>
 	</array>
 </dict>
 </plist>

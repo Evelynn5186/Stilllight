@@ -24,6 +24,7 @@
 
 /* Begin PBXFileReference section */
 		18918F092F2996C4004F34BD /* SpeechRecognizer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpeechRecognizer.swift; sourceTree = "<group>"; };
+		18C5FEC92F3691AE00BD4AD6 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		E91234520001 /* Glimmer.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Glimmer.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		E91234550001 /* GlimmerApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GlimmerApp.swift; sourceTree = "<group>"; };
 		E91234570001 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
@@ -74,6 +75,7 @@
 		E91234540001 /* Glimmer */ = {
 			isa = PBXGroup;
 			children = (
+				18C5FEC92F3691AE00BD4AD6 /* Info.plist */,
 				E91234550001 /* GlimmerApp.swift */,
 				E91234570001 /* ContentView.swift */,
 				E91234710001 /* HomeView.swift */,
@@ -319,6 +321,7 @@
 				DEVELOPMENT_TEAM = 24WL5256LW;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = Glimmer/Info.plist;
 				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Glimmer needs access to your microphone to transcribe your voice into text when recording accomplishments.";
 				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "Glimmer uses speech recognition to convert your voice into text, making it easier to capture your thoughts.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
@@ -350,6 +353,7 @@
 				DEVELOPMENT_TEAM = 24WL5256LW;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = Glimmer/Info.plist;
 				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Glimmer needs access to your microphone to transcribe your voice into text when recording accomplishments.";
 				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "Glimmer uses speech recognition to convert your voice into text, making it easier to capture your thoughts.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;

@@ -258,18 +258,22 @@ struct HomeView: View {
                 Spacer()
 
                 Button(action: catchGlimmer) {
-                    HStack(spacing: 8) {
-                        Image(systemName: "sparkle")
-                            .font(.system(size: 16, weight: .medium))
+                    HStack(alignment: .center, spacing: 8) {
+                        Image("Sparkle4")
+                            .resizable()
+                            .frame(width: 18, height: 18)
                         Text("Gather a little light")
-                            .font(.custom("Urbanist", size: 16).weight(.medium))
+                            .font(.custom("Urbanist", size: 14).weight(.medium))
+                            .multilineTextAlignment(.center)
+                            .foregroundColor(Color(red: 0.29, green: 0.29, blue: 0.29))
                     }
-                    .foregroundColor(.white)
-                    .padding(.horizontal, 20)
-                    .padding(.vertical, 14)
-                    .background(
-                        Capsule()
-                            .fill(Color(red: 0.22, green: 0.10, blue: 0.01))
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 6)
+                    .cornerRadius(9999)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 9999)
+                            .inset(by: 0.5)
+                            .stroke(Color(red: 0.29, green: 0.29, blue: 0.29), lineWidth: 1)
                     )
                 }
 
