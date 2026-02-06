@@ -691,6 +691,9 @@ struct MoodCalendarSection: View {
 struct MoodCalendarCard: View {
     let accomplishments: [Accomplishment]
 
+    @State private var selectedEntry: Accomplishment?
+    @State private var showEntryDetail = false
+
     private let calendar: Calendar = {
         var cal = Calendar.current
         cal.firstWeekday = 2 // Monday
@@ -700,6 +703,7 @@ struct MoodCalendarCard: View {
     private let gray30 = Color(red: 0.839, green: 0.827, blue: 0.820)
     private let gray60 = Color(red: 0.341, green: 0.325, blue: 0.306)
     private let gray80 = Color(red: 0.161, green: 0.145, blue: 0.141)
+    private let themeBrown = Color(red: 0.325, green: 0.212, blue: 0.188)
 
     private static let fallbackMoodColors: [Color] = [
         Color(red: 0.988, green: 0.804, blue: 0.737), // Happy peach
@@ -813,39 +817,56 @@ struct MoodCalendarCard: View {
                                 let hasEntry = daysWithEntries.contains(day)
                                 let isFutureDay = day > todayDay
 
+                                let isToday = day == todayDay
+
                                 VStack(spacing: 4) {
                                     Text("\(day)")
                                         .font(.custom("Urbanist", size: 12).weight(.medium))
                                         .foregroundColor(gray60)
 
                                     if hasEntry {
-                                        // Mood circle with emoji or plain light circle
-                                        if let mood = moodForDay(day) {
-                                            ZStack {
-                                                Circle()
-                                                    .fill(mood.color)
-                                                    .frame(width: 20, height: 20)
-                                                MoodEmojiView(mood: mood, size: 16)
+                                        // Mood circle with emoji or plain light circle - tappable
+                                        Button(action: {
+                                            if let entry = entriesByDay[day] {
+                                                selectedEntry = entry
+                                                showEntryDetail = true
+                                                UIImpactFeedbackGenerator(style: .light).impactOccurred()
                                             }
-                                        } else {
-                                            // No mood selected - pure light circle
-                                            Circle()
-                                                .fill(colorForDay(day))
-                                                .frame(width: 20, height: 20)
+                                        }) {
+                                            if let mood = moodForDay(day) {
+                                                ZStack {
+                                                    Circle()
+                                                        .fill(mood.color)
+                                                        .frame(width: 28, height: 28)
+                                                    MoodEmojiView(mood: mood, size: 20)
+                                                }
+                                                .overlay(
+                                                    isToday ? Circle().stroke(gray60, style: StrokeStyle(lineWidth: 1, dash: [3, 2])).frame(width: 32, height: 32) : nil
+                                                )
+                                            } else {
+                                                // No mood selected - pure light warm circle
+                                                Circle()
+                                                    .fill(Color(red: 0.98, green: 0.93, blue: 0.76))
+                                                    .frame(width: 28, height: 28)
+                                                    .overlay(
+                                                        isToday ? Circle().stroke(gray60, style: StrokeStyle(lineWidth: 1, dash: [3, 2])).frame(width: 32, height: 32) : nil
+                                                    )
+                                            }
                                         }
+                                        .buttonStyle(.plain)
                                     } else if isFutureDay {
                                         // Future: empty outlined circle
                                         Circle()
                                             .stroke(gray30, lineWidth: 1)
-                                            .frame(width: 20, height: 20)
+                                            .frame(width: 28, height: 28)
                                     } else {
                                         // Past without entry: circle with +
                                         ZStack {
                                             Circle()
-                                                .stroke(gray30, style: StrokeStyle(lineWidth: 1, dash: [3, 2]))
-                                                .frame(width: 20, height: 20)
+                                                .stroke(gray30, lineWidth: 1)
+                                                .frame(width: 28, height: 28)
                                             Image(systemName: "plus")
-                                                .font(.system(size: 8, weight: .medium))
+                                                .font(.system(size: 10, weight: .medium))
                                                 .foregroundColor(gray30)
                                         }
                                     }
@@ -868,6 +889,61 @@ struct MoodCalendarCard: View {
             RoundedRectangle(cornerRadius: 24)
                 .fill(Color(red: 0.980, green: 0.980, blue: 0.976))
         )
+        .overlay(
+            // Entry detail popup
+            Group {
+                if showEntryDetail, let entry = selectedEntry {
+                    ZStack {
+                        // Dimmed background
+                        Color.black.opacity(0.3)
+                            .ignoresSafeArea()
+                            .onTapGesture {
+                                showEntryDetail = false
+                            }
+
+                        // Entry card
+                        VStack(spacing: 12) {
+                            // Mood emoji if available
+                            if let mood = entry.mood {
+                                ZStack {
+                                    Circle()
+                                        .fill(mood.color)
+                                        .frame(width: 50, height: 50)
+                                    MoodEmojiView(mood: mood, size: 36)
+                                }
+                            }
+
+                            // Entry text
+                            Text("\u{201C}" + entry.text + "\u{201D}")
+                                .font(.custom("Baskerville", size: 15))
+                                .foregroundColor(themeBrown)
+                                .multilineTextAlignment(.center)
+                                .lineSpacing(4)
+                                .fixedSize(horizontal: false, vertical: true)
+
+                            // Date
+                            Text(formatEntryDate(entry.createdAt))
+                                .font(.custom("Urbanist", size: 11))
+                                .foregroundColor(themeBrown.opacity(0.5))
+                        }
+                        .padding(24)
+                        .frame(maxWidth: 280)
+                        .background(
+                            RoundedRectangle(cornerRadius: 20)
+                                .fill(Color.white)
+                                .shadow(color: Color.black.opacity(0.1), radius: 20, x: 0, y: 10)
+                        )
+                    }
+                }
+            }
+        )
+        .animation(.easeInOut(duration: 0.25), value: showEntryDetail)
+    }
+
+    private func formatEntryDate(_ date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "MMM d, yyyy 'at' h:mm a"
+        return formatter.string(from: date)
     }
 }
 
