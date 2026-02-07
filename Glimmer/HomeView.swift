@@ -3,10 +3,11 @@ import SwiftData
 import Speech
 
 struct HomeView: View {
-    @Environment(\.modelContext) private var modelContext
-    @Query private var accomplishments: [Accomplishment]
-    @AppStorage("pauseCheckIns") private var pauseCheckIns = false
-    @State private var hasCheckedInToday = false
+    // MARK: - Environment
+    @EnvironmentObject var viewModel: HomeViewModel
+    @Environment(\.modelContext) private var modelContext  // Keep for cache
+
+    // MARK: - UI State
     @State private var showGlimmerInput = false
     @State private var showGlimmerOverlay = false
     @State private var selectedGlimmer: Accomplishment?
@@ -26,20 +27,12 @@ struct HomeView: View {
     private let themeBrown = Color(red: 0.325, green: 0.212, blue: 0.188)
     private let borderColor = Color(red: 0.839, green: 0.827, blue: 0.820)
 
-    /// Days since last check-in
-    private var daysSinceLastCheckIn: Int {
-        guard let latest = accomplishments.max(by: { $0.createdAt < $1.createdAt }) else {
-            return 999
-        }
-        let calendar = Calendar.current
-        let days = calendar.dateComponents([.day], from: calendar.startOfDay(for: latest.createdAt), to: calendar.startOfDay(for: Date())).day ?? 0
-        return days
-    }
+    // MARK: - Computed Properties (use ViewModel)
 
-    /// Show "longtime no visit" state when user hasn't checked in for 7+ days
-    private var isLongtimeNoVisit: Bool {
-        !accomplishments.isEmpty && daysSinceLastCheckIn >= 7 && !pauseCheckIns
-    }
+    private var pauseCheckIns: Bool { viewModel.isPaused }
+    private var hasCheckedInToday: Bool { viewModel.hasCheckedInToday }
+    private var daysSinceLastCheckIn: Int { viewModel.daysSinceLastCheckIn }
+    private var isLongtimeNoVisit: Bool { viewModel.isLongtimeNoVisit }
 
     var body: some View {
         ZStack {
@@ -172,7 +165,7 @@ struct HomeView: View {
             // Sleep character image (缩小居中)
             GeometryReader { geo in
                 Button(action: {
-                    pauseCheckIns = false
+                    Task { await viewModel.setPaused(false) }
                 }) {
                     Image("SleepCharacter")
                         .resizable()
@@ -609,8 +602,9 @@ struct HomeView: View {
         guard !trimmedText.isEmpty else { return }
         UIImpactFeedbackGenerator(style: .medium).impactOccurred()
         showEncouragement = true
+        let moodToSave = selectedMood
         DispatchQueue.main.asyncAfter(deadline: .now() + 1.8) {
-            saveGlimmer(trimmedText, mood: selectedMood)
+            saveGlimmer(trimmedText, mood: moodToSave)
             glimmerText = ""
             selectedMood = nil
             showMoreMoods = false
@@ -621,24 +615,40 @@ struct HomeView: View {
     // MARK: - Functions
 
     private func checkTodayStatus() {
-        let calendar = Calendar.current
-        let today = calendar.startOfDay(for: Date())
-        hasCheckedInToday = accomplishments.contains { accomplishment in
-            calendar.isDate(accomplishment.createdAt, inSameDayAs: today)
+        Task {
+            await viewModel.loadStatus()
         }
     }
 
     private func saveGlimmer(_ text: String, mood: Mood? = nil) {
-        let accomplishment = Accomplishment(text: text, mood: mood)
-        modelContext.insert(accomplishment)
-        hasCheckedInToday = true
-        UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+        Task {
+            let success = await viewModel.saveGlimmer(text: text, mood: mood)
+            if success {
+                // Also cache locally in SwiftData
+                let accomplishment = Accomplishment(text: text, mood: mood)
+                modelContext.insert(accomplishment)
+            }
+            UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+        }
     }
 
     private func catchGlimmer() {
-        selectedGlimmer = accomplishments.isEmpty ? nil : accomplishments.randomElement()
-        showGlimmerOverlay = true
-        UIImpactFeedbackGenerator(style: .soft).impactOccurred()
+        Task {
+            if let journalWithMsg = await viewModel.getRandomGlimmer() {
+                // Convert to Accomplishment for display
+                let mood = Mood.from(score: 1) // Default mood
+                selectedGlimmer = Accomplishment(
+                    text: journalWithMsg.content,
+                    mood: mood,
+                    createdAt: journalWithMsg.createdAt,
+                    journalId: journalWithMsg.journalId
+                )
+            } else {
+                selectedGlimmer = nil
+            }
+            showGlimmerOverlay = true
+            UIImpactFeedbackGenerator(style: .soft).impactOccurred()
+        }
     }
 
 }

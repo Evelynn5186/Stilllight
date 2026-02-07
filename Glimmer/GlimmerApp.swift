@@ -4,6 +4,9 @@ import SwiftData
 @main
 struct GlimmerApp: App {
     @State private var showSplash = true
+    @StateObject private var appSettings = AppSettings.shared
+    @StateObject private var homeViewModel = HomeViewModel()
+    @StateObject private var journalViewModel = JournalViewModel()
 
     var sharedModelContainer: ModelContainer = {
         let schema = Schema([
@@ -23,6 +26,9 @@ struct GlimmerApp: App {
             ZStack {
                 ContentView()
                     .opacity(showSplash ? 0 : 1)
+                    .environmentObject(appSettings)
+                    .environmentObject(homeViewModel)
+                    .environmentObject(journalViewModel)
 
                 if showSplash {
                     SplashView(isActive: $showSplash)

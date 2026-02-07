@@ -62,6 +62,35 @@ enum Mood: String, Codable, CaseIterable {
     static var secondary: [Mood] {
         [.shy, .tired, .numb]
     }
+
+    /// API score mapping (1-8)
+    var score: Int {
+        switch self {
+        case .happy: return 1
+        case .normal: return 2
+        case .angry: return 3
+        case .sad: return 4
+        case .peaceful: return 5
+        case .shy: return 6
+        case .tired: return 7
+        case .numb: return 8
+        }
+    }
+
+    /// Create Mood from API score
+    static func from(score: Int) -> Mood? {
+        switch score {
+        case 1: return .happy
+        case 2: return .normal
+        case 3: return .angry
+        case 4: return .sad
+        case 5: return .peaceful
+        case 6: return .shy
+        case 7: return .tired
+        case 8: return .numb
+        default: return nil
+        }
+    }
 }
 
 // MARK: - Mood Emoji View
@@ -90,15 +119,31 @@ final class Accomplishment {
     var text: String
     var createdAt: Date
     var moodRaw: String?
+    var journalId: String?  // Links to API JournalRecord
+    var moodId: String?     // Links to API MoodRecord
 
     var mood: Mood? {
         get { moodRaw.flatMap { Mood(rawValue: $0) } }
         set { moodRaw = newValue?.rawValue }
     }
 
-    init(text: String, mood: Mood? = nil, createdAt: Date = .now) {
+    init(text: String, mood: Mood? = nil, createdAt: Date = .now, journalId: String? = nil, moodId: String? = nil) {
         self.text = text
         self.moodRaw = mood?.rawValue
         self.createdAt = createdAt
+        self.journalId = journalId
+        self.moodId = moodId
+    }
+
+    /// Create from API JournalRecord and MoodRecord
+    convenience init(from journal: JournalRecord, mood moodRecord: MoodRecord?) {
+        let mood = moodRecord.flatMap { Mood.from(score: $0.score) }
+        self.init(
+            text: journal.content,
+            mood: mood,
+            createdAt: journal.createdAt,
+            journalId: journal.journalId,
+            moodId: moodRecord?.moodId
+        )
     }
 }

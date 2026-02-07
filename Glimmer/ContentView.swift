@@ -3,17 +3,17 @@ import SwiftData
 
 struct ContentView: View {
     @State private var selectedTab = 0
-    @Query private var accomplishments: [Accomplishment]
-    @AppStorage("pauseCheckIns") private var pauseCheckIns = false
+    @EnvironmentObject var homeViewModel: HomeViewModel
+    @EnvironmentObject var journalViewModel: JournalViewModel
 
     private let themeBrown = Color(red: 0.325, green: 0.212, blue: 0.188)
 
     private var hasCheckedInToday: Bool {
-        let calendar = Calendar.current
-        let today = calendar.startOfDay(for: Date())
-        return accomplishments.contains { accomplishment in
-            calendar.isDate(accomplishment.createdAt, inSameDayAs: today)
-        }
+        homeViewModel.hasCheckedInToday
+    }
+
+    private var pauseCheckIns: Bool {
+        homeViewModel.isPaused
     }
 
     private var isDarkTheme: Bool {
@@ -194,13 +194,27 @@ struct BlobTabBarItem: View {
 // MARK: - Journal View
 
 struct JournalView: View {
-    @Environment(\.modelContext) private var modelContext
-    @Query(sort: \Accomplishment.createdAt, order: .reverse) private var accomplishments: [Accomplishment]
+    @EnvironmentObject var viewModel: JournalViewModel
+    @Query(sort: \Accomplishment.createdAt, order: .reverse) private var cachedAccomplishments: [Accomplishment]
 
     @State private var isCardFlipped = false
     @State private var selectedGlimmer: Accomplishment?
+    @State private var selectedDate: Date = Date()
 
     private let bgColor = Color(red: 0.969, green: 0.953, blue: 0.937)
+
+    // Convert API data to Accomplishment for compatibility with child views
+    private var accomplishments: [Accomplishment] {
+        // Use cached data if available, otherwise use locally cached
+        if viewModel.journals.isEmpty {
+            return cachedAccomplishments
+        }
+        // Convert JournalRecords to Accomplishments
+        return viewModel.journals.compactMap { journal in
+            let moodRecord = viewModel.moods.first { $0.localDate == journal.localDate }
+            return Accomplishment(from: journal, mood: moodRecord)
+        }
+    }
 
     var body: some View {
         ZStack {
@@ -216,11 +230,11 @@ struct JournalView: View {
                     )
                     .padding(.top, 8)
 
-                    // Week strip
-                    WeekStripView(accomplishments: accomplishments)
+                    // Week strip - tappable to select date
+                    WeekStripView(accomplishments: accomplishments, selectedDate: $selectedDate)
 
-                    // Today's mood card
-                    TodayMoodCard(accomplishments: accomplishments)
+                    // Selected day's mood card
+                    SelectedDayMoodCard(accomplishments: accomplishments, selectedDate: selectedDate)
 
                     // Mood Calendar
                     MoodCalendarSection(accomplishments: accomplishments)
@@ -231,14 +245,26 @@ struct JournalView: View {
             }
             .scrollIndicators(.hidden)
         }
+        .onAppear {
+            Task {
+                await viewModel.loadJournals()
+            }
+        }
     }
 
     private func catchGlimmer() {
-        selectedGlimmer = accomplishments.isEmpty ? nil : accomplishments.randomElement()
-        withAnimation(.easeInOut(duration: 0.4)) {
-            isCardFlipped = true
+        Task {
+            if let journal = await viewModel.getRandomJournal() {
+                let moodRecord = viewModel.moods.first { $0.localDate == journal.localDate }
+                selectedGlimmer = Accomplishment(from: journal, mood: moodRecord)
+            } else {
+                selectedGlimmer = nil
+            }
+            withAnimation(.easeInOut(duration: 0.4)) {
+                isCardFlipped = true
+            }
+            UIImpactFeedbackGenerator(style: .soft).impactOccurred()
         }
-        UIImpactFeedbackGenerator(style: .soft).impactOccurred()
     }
 }
 
@@ -480,12 +506,14 @@ struct GatherLightCard: View {
 
 struct WeekStripView: View {
     let accomplishments: [Accomplishment]
+    @Binding var selectedDate: Date
 
     private let calendar: Calendar = {
         var cal = Calendar.current
         cal.firstWeekday = 2 // Monday
         return cal
     }()
+    private let themeBrown = Color(red: 0.325, green: 0.212, blue: 0.188)
 
     private var weekDates: [Date] {
         let today = Date()
@@ -507,12 +535,15 @@ struct WeekStripView: View {
         if let entry = entryForDate(date), let mood = entry.mood {
             return mood.color
         }
-        // Light warm color for entries without mood
         return Color(red: 0.98, green: 0.93, blue: 0.76)
     }
 
     private func moodFor(date: Date) -> Mood? {
         return entryForDate(date)?.mood
+    }
+
+    private func isSelected(_ date: Date) -> Bool {
+        calendar.isDate(date, inSameDayAs: selectedDate)
     }
 
     var body: some View {
@@ -522,46 +553,54 @@ struct WeekStripView: View {
                 let isFuture = date > Date() && !isToday
                 let hasLog = hasEntry(on: date)
                 let dayNum = calendar.component(.day, from: date)
+                let selected = isSelected(date)
 
-                VStack(spacing: 3) {
-                    VStack(spacing: 0) {
-                        Text(dayLetter(for: date))
-                            .font(.custom("Urbanist", size: 12))
-                            .foregroundColor(isToday ? .white : Color(red: 0.341, green: 0.325, blue: 0.306))
-
-                        Text("\(dayNum)")
-                            .font(.custom("Urbanist", size: 14).weight(.semibold))
-                            .foregroundColor(isToday ? .white : Color(red: 0.161, green: 0.145, blue: 0.141))
+                Button(action: {
+                    if hasLog {
+                        selectedDate = date
+                        UIImpactFeedbackGenerator(style: .light).impactOccurred()
                     }
-                    .padding(8)
-                    .frame(width: 36)
-                    .background(
-                        Capsule()
-                            .fill(isToday ? Color(red: 0.325, green: 0.212, blue: 0.188).opacity(0.8) : Color.white)
-                            .overlay(
-                                !isToday && !isFuture
-                                    ? Capsule().stroke(Color(red: 0.839, green: 0.827, blue: 0.820), lineWidth: 1)
-                                    : nil
-                            )
-                    )
-                    .opacity(isFuture ? 0.7 : 1.0)
+                }) {
+                    VStack(spacing: 3) {
+                        VStack(spacing: 0) {
+                            Text(dayLetter(for: date))
+                                .font(.custom("Urbanist", size: 12))
+                                .foregroundColor(selected ? .white : Color(red: 0.341, green: 0.325, blue: 0.306))
 
-                    // Mood indicator
-                    if hasLog && !isToday {
-                        if let mood = moodFor(date: date) {
-                            // Show mood emoji
-                            MoodEmojiView(mood: mood, size: 12)
-                                .frame(width: 14, height: 14)
-                        } else {
-                            // No mood selected - pure light dot
-                            Circle()
-                                .fill(moodColor(for: date))
-                                .frame(width: 6, height: 6)
+                            Text("\(dayNum)")
+                                .font(.custom("Urbanist", size: 14).weight(.semibold))
+                                .foregroundColor(selected ? .white : Color(red: 0.161, green: 0.145, blue: 0.141))
                         }
-                    } else {
-                        Color.clear.frame(width: 14, height: 14)
+                        .padding(8)
+                        .frame(width: 36)
+                        .background(
+                            Capsule()
+                                .fill(selected ? themeBrown : Color.white)
+                                .overlay(
+                                    !selected && !isFuture
+                                        ? Capsule().stroke(Color(red: 0.839, green: 0.827, blue: 0.820), lineWidth: 1)
+                                        : nil
+                                )
+                        )
+                        .opacity(isFuture ? 0.5 : 1.0)
+
+                        // Mood indicator
+                        if hasLog {
+                            if let mood = moodFor(date: date) {
+                                MoodEmojiView(mood: mood, size: 12)
+                                    .frame(width: 14, height: 14)
+                            } else {
+                                Circle()
+                                    .fill(moodColor(for: date))
+                                    .frame(width: 6, height: 6)
+                            }
+                        } else {
+                            Color.clear.frame(width: 14, height: 14)
+                        }
                     }
                 }
+                .buttonStyle(.plain)
+                .disabled(isFuture || !hasLog)
                 .frame(maxWidth: .infinity)
             }
         }
@@ -645,6 +684,88 @@ struct TodayMoodCard: View {
                     .fill(Color(red: 0.980, green: 0.980, blue: 0.976))
             )
             .padding(.horizontal, 32)
+        }
+    }
+
+    private func formattedTimestamp(_ date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "'Written on' MMM d, yyyy '·' h:mm a"
+        return formatter.string(from: date)
+    }
+}
+
+// MARK: - Selected Day Mood Card
+
+struct SelectedDayMoodCard: View {
+    let accomplishments: [Accomplishment]
+    let selectedDate: Date
+
+    private let calendar = Calendar.current
+    private let themeBrown = Color(red: 0.325, green: 0.212, blue: 0.188)
+    private let insights = [
+        "Simple moments can still mean something.",
+        "You noticed the light. That's enough.",
+        "This was worth holding onto.",
+        "The small things carry the most warmth.",
+        "You showed up, and that matters.",
+        "Every glimmer adds to the whole.",
+    ]
+
+    private var selectedAccomplishment: Accomplishment? {
+        accomplishments.first { calendar.isDate($0.createdAt, inSameDayAs: selectedDate) }
+    }
+
+    private var insight: String {
+        let day = calendar.component(.day, from: selectedDate)
+        return insights[day % insights.count]
+    }
+
+    var body: some View {
+        if let entry = selectedAccomplishment {
+            let mood = entry.mood ?? .happy
+
+            VStack(spacing: 12) {
+                // Mood name
+                Text(mood.rawValue)
+                    .font(.custom("Urbanist", size: 24).weight(.medium))
+                    .foregroundColor(themeBrown)
+
+                // Mood emoji with colored background
+                ZStack {
+                    Circle()
+                        .fill(mood.color)
+                        .frame(width: 80, height: 80)
+                    MoodEmojiView(mood: mood, size: 60)
+                }
+                .frame(width: 130, height: 120)
+
+                // Entry text
+                Text("\u{201C}" + entry.text + "\u{201D}")
+                    .font(.custom("Baskerville", size: 15))
+                    .foregroundColor(themeBrown)
+                    .multilineTextAlignment(.center)
+                    .lineSpacing(4)
+                    .fixedSize(horizontal: false, vertical: true)
+
+                // Timestamp
+                Text(formattedTimestamp(entry.createdAt))
+                    .font(.custom("Urbanist", size: 10))
+                    .foregroundColor(themeBrown.opacity(0.5))
+
+                // Insight
+                Text(insight)
+                    .font(.custom("Urbanist", size: 12))
+                    .foregroundColor(themeBrown.opacity(0.6))
+                    .italic()
+            }
+            .padding(16)
+            .frame(maxWidth: .infinity)
+            .background(
+                RoundedRectangle(cornerRadius: 24)
+                    .fill(Color(red: 0.980, green: 0.980, blue: 0.976))
+            )
+            .padding(.horizontal, 32)
+            .animation(.easeInOut(duration: 0.3), value: selectedDate)
         }
     }
 

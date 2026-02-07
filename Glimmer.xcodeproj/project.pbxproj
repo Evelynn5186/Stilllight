@@ -42,6 +42,9 @@
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		18C5FEC32F36897100BD4AD6 /* Fonts */ = {isa = PBXFileSystemSynchronizedRootGroup; explicitFileTypes = {}; explicitFolders = (); name = Fonts; path = Glimmer/Fonts; sourceTree = "<group>"; };
+		18C5FECB2F36AC2700BD4AD6 /* Models */ = {isa = PBXFileSystemSynchronizedRootGroup; explicitFileTypes = {}; explicitFolders = (); name = Models; path = Glimmer/Models; sourceTree = "<group>"; };
+		18C5FECF2F36AC2700BD4AD6 /* Services */ = {isa = PBXFileSystemSynchronizedRootGroup; explicitFileTypes = {}; explicitFolders = (); name = Services; path = Glimmer/Services; sourceTree = "<group>"; };
+		18C5FED62F36AC7E00BD4AD6 /* ViewModels */ = {isa = PBXFileSystemSynchronizedRootGroup; explicitFileTypes = {}; explicitFolders = (); name = ViewModels; path = Glimmer/ViewModels; sourceTree = "<group>"; };
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -58,6 +61,9 @@
 		E91234490001 = {
 			isa = PBXGroup;
 			children = (
+				18C5FED62F36AC7E00BD4AD6 /* ViewModels */,
+				18C5FECB2F36AC2700BD4AD6 /* Models */,
+				18C5FECF2F36AC2700BD4AD6 /* Services */,
 				18C5FEC32F36897100BD4AD6 /* Fonts */,
 				E91234540001 /* Glimmer */,
 				E91234530001 /* Products */,
@@ -118,6 +124,9 @@
 			);
 			fileSystemSynchronizedGroups = (
 				18C5FEC32F36897100BD4AD6 /* Fonts */,
+				18C5FECB2F36AC2700BD4AD6 /* Models */,
+				18C5FECF2F36AC2700BD4AD6 /* Services */,
+				18C5FED62F36AC7E00BD4AD6 /* ViewModels */,
 			);
 			name = Glimmer;
 			productName = Glimmer;
