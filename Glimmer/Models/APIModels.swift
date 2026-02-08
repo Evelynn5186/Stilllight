@@ -82,9 +82,9 @@ struct JournalWithWarmMessage: Codable {
 }
 
 struct AIWarmMessageList: Codable {
-    let messageId: String
+    let messageId: String?
     let alternatives: [AIWarmMessage]
-    let generatedAt: Date
+    let generatedAt: Date?
 
     enum CodingKeys: String, CodingKey {
         case messageId = "message_id"
@@ -140,11 +140,13 @@ struct CheckinStatus: Codable {
     let checkinId: String?
     let localDate: String
     let checkedInToday: Bool
+    let timezoneUsed: String?
 
     enum CodingKeys: String, CodingKey {
         case checkinId = "checkin_id"
         case localDate = "local_date"
         case checkedInToday = "checked_in_today"
+        case timezoneUsed = "timezone_used"
     }
 }
 
@@ -166,7 +168,7 @@ struct PauseStatusUpdate: Codable {
 
 // MARK: - Emergency Contact
 
-struct EmergencyContact: Codable {
+struct EmergencyContact: Codable, Equatable {
     let contactId: String
     let name: String
     let email: String
@@ -176,7 +178,7 @@ struct EmergencyContact: Codable {
         case contactId = "contact_id"
         case name
         case email
-        case relationship
+        case relationship = "contact_relationship"
     }
 }
 
@@ -184,11 +186,17 @@ struct EmergencyContactUpsert: Codable {
     let name: String
     let email: String
     let relationship: String?
+
+    enum CodingKeys: String, CodingKey {
+        case name
+        case email
+        case relationship = "contact_relationship"
+    }
 }
 
 // MARK: - Checkin Reminder
 
-struct CheckinReminder: Codable {
+struct CheckinReminder: Codable, Equatable {
     let enabled: Bool
     let timeLocal: String
     let frequencyType: String
@@ -200,11 +208,35 @@ struct CheckinReminder: Codable {
         case frequencyType = "frequency_type"
         case intervalDays = "interval_days"
     }
+
+    /// 从时间字符串解析为 Date (用于 DatePicker)
+    var timeAsDate: Date {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "HH:mm"
+        return formatter.date(from: timeLocal) ?? Date()
+    }
+
+    /// 创建更新用的副本
+    static func create(
+        enabled: Bool,
+        time: Date,
+        frequencyType: String,
+        intervalDays: Int?
+    ) -> CheckinReminder {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "HH:mm"
+        return CheckinReminder(
+            enabled: enabled,
+            timeLocal: formatter.string(from: time),
+            frequencyType: frequencyType,
+            intervalDays: frequencyType == "every_n_days" ? intervalDays : nil
+        )
+    }
 }
 
 // MARK: - Miss Checkin Rule
 
-struct MissCheckinRule: Codable {
+struct MissCheckinRule: Codable, Equatable {
     let thresholdDays: Int
     let messageTemplate: String
 
@@ -212,6 +244,8 @@ struct MissCheckinRule: Codable {
         case thresholdDays = "threshold_days"
         case messageTemplate = "message_template"
     }
+
+    static let defaultTemplate = "Hi, {contact_name}, this is Lumenary. We haven't heard from {username} in {interval_days} days. Please consider reaching out to them to make sure they're okay."
 }
 
 // MARK: - Error Response

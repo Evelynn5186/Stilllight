@@ -96,7 +96,8 @@ class MockAPIClient: APIClientProtocol {
             checkins[localDate] = CheckinStatus(
                 checkinId: UUID().uuidString,
                 localDate: localDate,
-                checkedInToday: true
+                checkedInToday: true,
+                timezoneUsed: TimeZone.current.identifier
             )
         }
 
@@ -189,7 +190,7 @@ class MockAPIClient: APIClientProtocol {
                 let response = ApiResponse(data: status, message: "OK")
                 return try cast(response)
             } else {
-                let status = CheckinStatus(checkinId: nil, localDate: today, checkedInToday: false)
+                let status = CheckinStatus(checkinId: nil, localDate: today, checkedInToday: false, timezoneUsed: TimeZone.current.identifier)
                 let response = ApiResponse(data: status, message: "OK")
                 return try cast(response)
             }
@@ -275,7 +276,8 @@ class MockAPIClient: APIClientProtocol {
             let status = CheckinStatus(
                 checkinId: UUID().uuidString,
                 localDate: today,
-                checkedInToday: true
+                checkedInToday: true,
+                timezoneUsed: TimeZone.current.identifier
             )
             checkins[today] = status
             let response = ApiResponse(data: status, message: "OK")

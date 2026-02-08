@@ -1,24 +1,16 @@
 import SwiftUI
+import UIKit
 
 struct SafetyView: View {
     @Environment(\.dismiss) private var dismiss
+    @StateObject private var viewModel = SafetySettingsViewModel()
     @State private var expandedSection: SafetySection?
-
-    // Emergency Contact fields
-    @AppStorage("emergencyContactName") private var contactName = "John C"
-    @AppStorage("emergencyContactPhone") private var contactPhone = "(802)-231-3211"
-    @AppStorage("emergencyContactRelationship") private var contactRelationship = "Friend"
-
-    // Missed Check-ins fields
-    @AppStorage("missedCheckInDays") private var notifyAfterDays = "3 days (default)"
-    @AppStorage("checkInPromptEnabled") private var checkInPromptEnabled = true
-    @AppStorage("missedCheckInMessage") private var missedMessage = "Hi, this is a message from [App Name] on behalf of [User]. They haven't checked in for a few days, and you're listed as their emergency contact. It might be a good time to reach out."
 
     private let themeBrown = Color(red: 0.325, green: 0.212, blue: 0.188)
     private let bgColor = Color(red: 0.969, green: 0.953, blue: 0.937)
     private let grey = Color(red: 0.294, green: 0.294, blue: 0.294)
     private let borderColor = Color(red: 0.839, green: 0.827, blue: 0.820)
-    private let accentBrown = Color(red: 0.573, green: 0.384, blue: 0.278) // #926247
+    private let accentBrown = Color(red: 0.573, green: 0.384, blue: 0.278)
 
     enum SafetySection {
         case emergencyContact
@@ -40,21 +32,51 @@ struct SafetyView: View {
                         .padding(.top, 24)
                         .padding(.bottom, 24)
 
-                    // Safety cards
-                    VStack(spacing: 16) {
-                        // Emergency Contact Section
-                        emergencyContactCard
+                    if viewModel.isLoading {
+                        ProgressView()
+                            .padding(.top, 40)
+                    } else {
+                        // Safety cards
+                        VStack(spacing: 16) {
+                            // Emergency Contact Section
+                            emergencyContactCard
 
-                        // Missed Check-ins Section
-                        missedCheckInsCard
+                            // Missed Check-ins Section
+                            missedCheckInsCard
+                        }
+                        .padding(.horizontal, 32)
                     }
-                    .padding(.horizontal, 32)
 
                     Spacer()
                         .frame(height: 120)
                 }
             }
             .scrollIndicators(.hidden)
+
+            // Error/Success Toast
+            if let message = viewModel.errorMessage ?? viewModel.successMessage {
+                VStack {
+                    Spacer()
+                    Text(message)
+                        .font(.custom("Urbanist", size: 14).weight(.medium))
+                        .foregroundColor(.white)
+                        .padding(.horizontal, 20)
+                        .padding(.vertical, 12)
+                        .background(
+                            Capsule()
+                                .fill(viewModel.errorMessage != nil ? Color.red.opacity(0.9) : Color.green.opacity(0.9))
+                        )
+                        .padding(.bottom, 100)
+                }
+                .transition(.move(edge: .bottom).combined(with: .opacity))
+                .onAppear {
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
+                        withAnimation {
+                            viewModel.clearMessages()
+                        }
+                    }
+                }
+            }
         }
         .navigationBarTitleDisplayMode(.inline)
         .navigationBarBackButtonHidden(true)
@@ -68,6 +90,9 @@ struct SafetyView: View {
             }
         }
         .animation(.easeInOut(duration: 0.25), value: expandedSection)
+        .task {
+            await viewModel.loadSettings()
+        }
     }
 
     // MARK: - Emergency Contact Card
@@ -89,7 +114,7 @@ struct SafetyView: View {
                                 .font(.custom("Urbanist", size: 12).weight(.medium))
                                 .foregroundColor(grey)
                         } else {
-                            Text(contactName)
+                            Text(viewModel.hasEmergencyContact ? viewModel.contactName : "Not set")
                                 .font(.custom("Urbanist", size: 12).weight(.medium))
                                 .foregroundColor(grey)
                         }
@@ -107,30 +132,41 @@ struct SafetyView: View {
             // Expanded form fields
             if expandedSection == .emergencyContact {
                 VStack(spacing: 12) {
-                    SafetyTextField(label: "Name", text: $contactName)
-                    SafetyTextField(label: "Phone", text: $contactPhone)
-                    SafetyDropdownField(label: "Relationship (optional)", value: contactRelationship)
+                    SafetyTextField(label: "Name", text: $viewModel.contactName)
+                    SafetyTextField(label: "Email", text: $viewModel.contactEmail, keyboardType: .emailAddress)
+                    SafetyTextField(label: "Relationship (optional)", text: $viewModel.contactRelationship)
 
                     // Save button
                     HStack {
                         Spacer()
                         Button(action: {
-                            expandedSection = nil
+                            Task {
+                                if await viewModel.saveEmergencyContact() {
+                                    expandedSection = nil
+                                }
+                            }
                         }) {
                             HStack(spacing: 6) {
-                                Text("Save")
-                                    .font(.custom("Urbanist", size: 16).weight(.bold))
-                                Image(systemName: "checkmark")
-                                    .font(.system(size: 14, weight: .bold))
+                                if viewModel.isSaving {
+                                    ProgressView()
+                                        .scaleEffect(0.8)
+                                        .tint(.white)
+                                } else {
+                                    Text("Save")
+                                        .font(.custom("Urbanist", size: 16).weight(.bold))
+                                    Image(systemName: "checkmark")
+                                        .font(.system(size: 14, weight: .bold))
+                                }
                             }
                             .foregroundColor(.white)
                             .padding(.horizontal, 24)
                             .padding(.vertical, 12)
                             .background(
                                 Capsule()
-                                    .fill(accentBrown)
+                                    .fill(viewModel.isContactValid ? accentBrown : accentBrown.opacity(0.5))
                             )
                         }
+                        .disabled(!viewModel.isContactValid || viewModel.isSaving)
                     }
                     .padding(.top, 8)
                 }
@@ -166,7 +202,7 @@ struct SafetyView: View {
                                 .foregroundColor(grey)
                                 .fixedSize(horizontal: false, vertical: true)
                         } else {
-                            Text(notifyAfterDays.replacingOccurrences(of: " (default)", with: ""))
+                            Text("\(viewModel.missedCheckInDays) days")
                                 .font(.custom("Urbanist", size: 12).weight(.medium))
                                 .foregroundColor(grey)
                         }
@@ -184,21 +220,25 @@ struct SafetyView: View {
             // Expanded form fields
             if expandedSection == .missedCheckIns {
                 VStack(alignment: .leading, spacing: 16) {
-                    // Notify After
+                    // Notify After - Days Picker
                     VStack(alignment: .leading, spacing: 6) {
                         Text("Notify After")
                             .font(.custom("Urbanist", size: 14).weight(.bold))
                             .foregroundColor(themeBrown)
-                        SafetyDropdownField(label: "", value: notifyAfterDays)
-                    }
 
-                    // Check-in Prompt
-                    VStack(alignment: .leading, spacing: 6) {
-                        Text("Before we reach out, do you want us to check in with you first?")
-                            .font(.custom("Urbanist", size: 14).weight(.bold))
-                            .foregroundColor(themeBrown)
-                            .fixedSize(horizontal: false, vertical: true)
-                        SafetyDropdownField(label: "", value: checkInPromptEnabled ? "Yes" : "No")
+                        Picker("Days", selection: $viewModel.missedCheckInDays) {
+                            ForEach(1...14, id: \.self) { day in
+                                Text("\(day) day\(day == 1 ? "" : "s")").tag(day)
+                            }
+                        }
+                        .pickerStyle(.menu)
+                        .tint(themeBrown)
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 10)
+                        .background(
+                            RoundedRectangle(cornerRadius: 9999)
+                                .stroke(borderColor, lineWidth: 1)
+                        )
                     }
 
                     // Message Preview
@@ -207,7 +247,11 @@ struct SafetyView: View {
                             .font(.custom("Urbanist", size: 14).weight(.bold))
                             .foregroundColor(themeBrown)
 
-                        Text(missedMessage)
+                        Text(viewModel.messageTemplate
+                            .replacingOccurrences(of: "{contact_name}", with: viewModel.contactName.isEmpty ? "Contact" : viewModel.contactName)
+                            .replacingOccurrences(of: "{username}", with: "You")
+                            .replacingOccurrences(of: "{interval_days}", with: "\(viewModel.missedCheckInDays)")
+                        )
                             .font(.custom("Urbanist", size: 10))
                             .foregroundColor(themeBrown.opacity(0.5))
                             .padding(12)
@@ -222,13 +266,23 @@ struct SafetyView: View {
                     HStack {
                         Spacer()
                         Button(action: {
-                            expandedSection = nil
+                            Task {
+                                if await viewModel.saveMissCheckinRule() {
+                                    expandedSection = nil
+                                }
+                            }
                         }) {
                             HStack(spacing: 6) {
-                                Text("Save")
-                                    .font(.custom("Urbanist", size: 16).weight(.bold))
-                                Image(systemName: "checkmark")
-                                    .font(.system(size: 14, weight: .bold))
+                                if viewModel.isSaving {
+                                    ProgressView()
+                                        .scaleEffect(0.8)
+                                        .tint(.white)
+                                } else {
+                                    Text("Save")
+                                        .font(.custom("Urbanist", size: 16).weight(.bold))
+                                    Image(systemName: "checkmark")
+                                        .font(.system(size: 14, weight: .bold))
+                                }
                             }
                             .foregroundColor(.white)
                             .padding(.horizontal, 24)
@@ -238,6 +292,7 @@ struct SafetyView: View {
                                     .fill(accentBrown)
                             )
                         }
+                        .disabled(viewModel.isSaving)
                     }
                 }
                 .padding(.top, 16)
@@ -258,6 +313,7 @@ struct SafetyView: View {
 struct SafetyTextField: View {
     let label: String
     @Binding var text: String
+    var keyboardType: UIKeyboardType = .default
 
     private let themeBrown = Color(red: 0.325, green: 0.212, blue: 0.188)
     private let borderColor = Color(red: 0.839, green: 0.827, blue: 0.820)
@@ -266,6 +322,8 @@ struct SafetyTextField: View {
         TextField(label, text: $text)
             .font(.custom("Urbanist", size: 16))
             .foregroundColor(themeBrown)
+            .keyboardType(keyboardType)
+            .autocapitalization(keyboardType == .emailAddress ? .none : .words)
             .padding(.horizontal, 16)
             .padding(.vertical, 14)
             .background(

@@ -118,6 +118,7 @@ struct MoodEmojiView: View {
 final class Accomplishment {
     var text: String
     var createdAt: Date
+    var localDate: String = ""  // "yyyy-MM-dd" format for calendar matching
     var moodRaw: String?
     var journalId: String?  // Links to API JournalRecord
     var moodId: String?     // Links to API MoodRecord
@@ -127,10 +128,18 @@ final class Accomplishment {
         set { moodRaw = newValue?.rawValue }
     }
 
-    init(text: String, mood: Mood? = nil, createdAt: Date = .now, journalId: String? = nil, moodId: String? = nil) {
+    init(text: String, mood: Mood? = nil, createdAt: Date = .now, localDate: String? = nil, journalId: String? = nil, moodId: String? = nil) {
         self.text = text
         self.moodRaw = mood?.rawValue
         self.createdAt = createdAt
+        // Use provided localDate or generate from createdAt
+        if let localDate = localDate {
+            self.localDate = localDate
+        } else {
+            let formatter = DateFormatter()
+            formatter.dateFormat = "yyyy-MM-dd"
+            self.localDate = formatter.string(from: createdAt)
+        }
         self.journalId = journalId
         self.moodId = moodId
     }
@@ -142,6 +151,7 @@ final class Accomplishment {
             text: journal.content,
             mood: mood,
             createdAt: journal.createdAt,
+            localDate: journal.localDate,  // Use the API's localDate
             journalId: journal.journalId,
             moodId: moodRecord?.moodId
         )

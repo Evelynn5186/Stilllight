@@ -7,13 +7,7 @@ import SwiftData
 class AppSettings: ObservableObject {
     static let shared = AppSettings()
 
-    @AppStorage("apiMode") var apiModeRaw: String = {
-        #if DEBUG
-        return APIMode.mock.rawValue
-        #else
-        return APIMode.live.rawValue
-        #endif
-    }()
+    @AppStorage("apiMode") var apiModeRaw: String = APIMode.live.rawValue
 
     var apiMode: APIMode {
         get { APIMode(rawValue: apiModeRaw) ?? .mock }

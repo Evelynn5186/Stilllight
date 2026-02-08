@@ -201,19 +201,24 @@ struct JournalView: View {
     @State private var selectedGlimmer: Accomplishment?
     @State private var selectedDate: Date = Date()
 
+    // Calendar entry popup state (moved from MoodCalendarCard)
+    @State private var calendarSelectedEntry: Accomplishment?
+    @State private var showCalendarEntryDetail = false
+
     private let bgColor = Color(red: 0.969, green: 0.953, blue: 0.937)
+    private let themeBrown = Color(red: 0.325, green: 0.212, blue: 0.188)
 
     // Convert API data to Accomplishment for compatibility with child views
+    // Always prefer API data over cached SwiftData entries
     private var accomplishments: [Accomplishment] {
-        // Use cached data if available, otherwise use locally cached
-        if viewModel.journals.isEmpty {
-            return cachedAccomplishments
-        }
-        // Convert JournalRecords to Accomplishments
-        return viewModel.journals.compactMap { journal in
+        // Convert JournalRecords from API to Accomplishments
+        let apiAccomplishments = viewModel.journals.compactMap { journal -> Accomplishment? in
             let moodRecord = viewModel.moods.first { $0.localDate == journal.localDate }
             return Accomplishment(from: journal, mood: moodRecord)
         }
+
+        // Return API data if available, otherwise fall back to cache
+        return apiAccomplishments.isEmpty ? cachedAccomplishments : apiAccomplishments
     }
 
     var body: some View {
@@ -237,14 +242,24 @@ struct JournalView: View {
                     SelectedDayMoodCard(accomplishments: accomplishments, selectedDate: selectedDate)
 
                     // Mood Calendar
-                    MoodCalendarSection(accomplishments: accomplishments)
+                    MoodCalendarSection(
+                        accomplishments: accomplishments,
+                        selectedEntry: $calendarSelectedEntry,
+                        showEntryDetail: $showCalendarEntryDetail
+                    )
 
                     Spacer().frame(height: 100)
                 }
                 .padding(.top, 16)
             }
             .scrollIndicators(.hidden)
+
+            // Calendar entry detail popup (full screen overlay)
+            if showCalendarEntryDetail, let entry = calendarSelectedEntry {
+                CalendarEntryPopup(entry: entry, isPresented: $showCalendarEntryDetail)
+            }
         }
+        .animation(.easeInOut(duration: 0.25), value: showCalendarEntryDetail)
         .onAppear {
             Task {
                 await viewModel.loadJournals()
@@ -524,7 +539,10 @@ struct WeekStripView: View {
     }
 
     private func entryForDate(_ date: Date) -> Accomplishment? {
-        accomplishments.first { calendar.isDate($0.createdAt, inSameDayAs: date) }
+        let dateFormatter = DateFormatter()
+        dateFormatter.dateFormat = "yyyy-MM-dd"
+        let dateString = dateFormatter.string(from: date)
+        return accomplishments.first { $0.localDate == dateString }
     }
 
     private func hasEntry(on date: Date) -> Bool {
@@ -631,7 +649,10 @@ struct TodayMoodCard: View {
     ]
 
     private var todayAccomplishment: Accomplishment? {
-        accomplishments.first { calendar.isDateInToday($0.createdAt) }
+        let dateFormatter = DateFormatter()
+        dateFormatter.dateFormat = "yyyy-MM-dd"
+        let todayString = dateFormatter.string(from: Date())
+        return accomplishments.first { $0.localDate == todayString }
     }
 
     private var insight: String {
@@ -712,7 +733,10 @@ struct SelectedDayMoodCard: View {
     ]
 
     private var selectedAccomplishment: Accomplishment? {
-        accomplishments.first { calendar.isDate($0.createdAt, inSameDayAs: selectedDate) }
+        let dateFormatter = DateFormatter()
+        dateFormatter.dateFormat = "yyyy-MM-dd"
+        let dateString = dateFormatter.string(from: selectedDate)
+        return accomplishments.first { $0.localDate == dateString }
     }
 
     private var insight: String {
@@ -780,6 +804,8 @@ struct SelectedDayMoodCard: View {
 
 struct MoodCalendarSection: View {
     let accomplishments: [Accomplishment]
+    @Binding var selectedEntry: Accomplishment?
+    @Binding var showEntryDetail: Bool
 
     private let brandAccent = Color(red: 0.573, green: 0.384, blue: 0.278)
 
@@ -801,7 +827,11 @@ struct MoodCalendarSection: View {
             }
 
             // Calendar card
-            MoodCalendarCard(accomplishments: accomplishments)
+            MoodCalendarCard(
+                accomplishments: accomplishments,
+                selectedEntry: $selectedEntry,
+                showEntryDetail: $showEntryDetail
+            )
         }
         .padding(.horizontal, 32)
     }
@@ -811,9 +841,8 @@ struct MoodCalendarSection: View {
 
 struct MoodCalendarCard: View {
     let accomplishments: [Accomplishment]
-
-    @State private var selectedEntry: Accomplishment?
-    @State private var showEntryDetail = false
+    @Binding var selectedEntry: Accomplishment?
+    @Binding var showEntryDetail: Bool
 
     private let calendar: Calendar = {
         var cal = Calendar.current
@@ -855,10 +884,26 @@ struct MoodCalendarCard: View {
 
     private var entriesByDay: [Int: Accomplishment] {
         var map: [Int: Accomplishment] = [:]
-        for acc in accomplishments {
-            if calendar.isDate(acc.createdAt, equalTo: today, toGranularity: .month) {
-                let day = calendar.component(.day, from: acc.createdAt)
-                map[day] = acc
+        let dateFormatter = DateFormatter()
+        dateFormatter.dateFormat = "yyyy-MM-dd"
+
+        let currentYear = calendar.component(.year, from: today)
+        let currentMonth = calendar.component(.month, from: today)
+
+        // Sort by createdAt descending so we keep the most recent entry for each day
+        let sortedAccomplishments = accomplishments.sorted { $0.createdAt > $1.createdAt }
+
+        for acc in sortedAccomplishments {
+            // Parse localDate string to extract year, month, day
+            if let accDate = dateFormatter.date(from: acc.localDate) {
+                let accYear = calendar.component(.year, from: accDate)
+                let accMonth = calendar.component(.month, from: accDate)
+                let accDay = calendar.component(.day, from: accDate)
+
+                // Only add if this day doesn't already have an entry (keeps the newest one)
+                if accYear == currentYear && accMonth == currentMonth && map[accDay] == nil {
+                    map[accDay] = acc
+                }
             }
         }
         return map
@@ -1010,55 +1055,60 @@ struct MoodCalendarCard: View {
             RoundedRectangle(cornerRadius: 24)
                 .fill(Color(red: 0.980, green: 0.980, blue: 0.976))
         )
-        .overlay(
-            // Entry detail popup
-            Group {
-                if showEntryDetail, let entry = selectedEntry {
+    }
+}
+
+// MARK: - Calendar Entry Popup
+
+struct CalendarEntryPopup: View {
+    let entry: Accomplishment
+    @Binding var isPresented: Bool
+
+    private let themeBrown = Color(red: 0.325, green: 0.212, blue: 0.188)
+
+    var body: some View {
+        ZStack {
+            // Dimmed background
+            Color.black.opacity(0.3)
+                .ignoresSafeArea()
+                .onTapGesture {
+                    isPresented = false
+                }
+
+            // Entry card
+            VStack(spacing: 12) {
+                // Mood emoji if available
+                if let mood = entry.mood {
                     ZStack {
-                        // Dimmed background
-                        Color.black.opacity(0.3)
-                            .ignoresSafeArea()
-                            .onTapGesture {
-                                showEntryDetail = false
-                            }
-
-                        // Entry card
-                        VStack(spacing: 12) {
-                            // Mood emoji if available
-                            if let mood = entry.mood {
-                                ZStack {
-                                    Circle()
-                                        .fill(mood.color)
-                                        .frame(width: 50, height: 50)
-                                    MoodEmojiView(mood: mood, size: 36)
-                                }
-                            }
-
-                            // Entry text
-                            Text("\u{201C}" + entry.text + "\u{201D}")
-                                .font(.custom("Baskerville", size: 15))
-                                .foregroundColor(themeBrown)
-                                .multilineTextAlignment(.center)
-                                .lineSpacing(4)
-                                .fixedSize(horizontal: false, vertical: true)
-
-                            // Date
-                            Text(formatEntryDate(entry.createdAt))
-                                .font(.custom("Urbanist", size: 11))
-                                .foregroundColor(themeBrown.opacity(0.5))
-                        }
-                        .padding(24)
-                        .frame(maxWidth: 280)
-                        .background(
-                            RoundedRectangle(cornerRadius: 20)
-                                .fill(Color.white)
-                                .shadow(color: Color.black.opacity(0.1), radius: 20, x: 0, y: 10)
-                        )
+                        Circle()
+                            .fill(mood.color)
+                            .frame(width: 50, height: 50)
+                        MoodEmojiView(mood: mood, size: 36)
                     }
                 }
+
+                // Entry text
+                Text("\u{201C}" + entry.text + "\u{201D}")
+                    .font(.custom("Baskerville", size: 15))
+                    .foregroundColor(themeBrown)
+                    .multilineTextAlignment(.center)
+                    .lineSpacing(4)
+                    .fixedSize(horizontal: false, vertical: true)
+
+                // Date
+                Text(formatEntryDate(entry.createdAt))
+                    .font(.custom("Urbanist", size: 11))
+                    .foregroundColor(themeBrown.opacity(0.5))
             }
-        )
-        .animation(.easeInOut(duration: 0.25), value: showEntryDetail)
+            .padding(24)
+            .frame(maxWidth: 280)
+            .background(
+                RoundedRectangle(cornerRadius: 20)
+                    .fill(Color.white)
+                    .shadow(color: Color.black.opacity(0.1), radius: 20, x: 0, y: 10)
+            )
+        }
+        .transition(.opacity)
     }
 
     private func formatEntryDate(_ date: Date) -> String {
