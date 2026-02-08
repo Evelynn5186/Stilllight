@@ -1,0 +1,3 @@
+[submodule "server"]
+	path = server
+	url = https://github.com/Serene0-0/hackathon.git
