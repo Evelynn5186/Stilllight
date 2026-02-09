@@ -14,15 +14,14 @@ enum Mood: String, Codable, CaseIterable {
     case tired = "Tired"
     case numb = "Numb"
 
-    /// Asset image name for the 5 primary moods; nil for secondary moods
-    var imageName: String? {
+    /// Asset image name for moods
+    var imageName: String {
         switch self {
         case .happy: return "EmojiHappy"
         case .normal: return "EmojiNormal"
         case .angry: return "EmojiAngry"
         case .sad: return "EmojiSad"
-        case .peaceful: return "EmojiPeaceful"
-        case .shy, .tired, .numb: return nil
+        case .peaceful, .shy, .tired, .numb: return "EmojiPeaceful"
         }
     }
 
@@ -100,15 +99,10 @@ struct MoodEmojiView: View {
     var size: CGFloat = 30
 
     var body: some View {
-        if let imageName = mood.imageName {
-            Image(imageName)
-                .resizable()
-                .scaledToFit()
-                .frame(width: size, height: size)
-        } else {
-            Text(mood.emoji)
-                .font(.system(size: size * 0.6))
-        }
+        Image(mood.imageName)
+            .resizable()
+            .scaledToFit()
+            .frame(width: size, height: size)
     }
 }
 

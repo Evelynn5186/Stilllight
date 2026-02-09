@@ -129,4 +129,34 @@ class HomeViewModel: ObservableObject {
             return nil
         }
     }
+
+    /// Fallback: get random journal without AI message
+    func getRandomJournalFallback() async -> JournalRecord? {
+        do {
+            return try await service.getRandomJournal()
+        } catch {
+            print("HomeViewModel getRandomJournalFallback error: \(error)")
+            return nil
+        }
+    }
+
+    // MARK: - Get Mood for Date
+
+    /// Find mood for a specific localDate string
+    func getMoodForDate(_ localDate: String) -> Mood? {
+        // Check cached moods in service
+        if let moodRecord = service.cachedMoods.first(where: { $0.localDate == localDate }) {
+            return Mood.from(score: moodRecord.score)
+        }
+        return nil
+    }
+
+    /// Load all moods to cache
+    func loadMoods() async {
+        do {
+            _ = try await service.getMoods()
+        } catch {
+            print("HomeViewModel loadMoods error: \(error)")
+        }
+    }
 }

@@ -275,7 +275,7 @@ struct DeveloperSettingsView: View {
                             .font(.custom("Urbanist", size: 16).weight(.bold))
                             .foregroundColor(themeBrown)
 
-                        Text(appSettings.apiMode == .mock ? "Mock (In-Memory)" : "http://localhost:8000/api/v1")
+                        Text(appSettings.apiMode == .mock ? "Mock (In-Memory)" : "lumenary-api.onrender.com")
                             .font(.custom("Urbanist", size: 14))
                             .foregroundColor(grey)
                     }

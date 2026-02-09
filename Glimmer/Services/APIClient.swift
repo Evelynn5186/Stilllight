@@ -58,7 +58,7 @@ class APIClient: APIClientProtocol {
     private let decoder: JSONDecoder
     private let encoder: JSONEncoder
 
-    init(baseURL: String = "http://localhost:8000/api/v1") {
+    init(baseURL: String = "https://lumenary-api.onrender.com/api/v1") {
         self.baseURL = baseURL
         self.session = URLSession.shared
 
@@ -67,8 +67,8 @@ class APIClient: APIClientProtocol {
             let container = try decoder.singleValueContainer()
             let dateString = try container.decode(String.self)
 
-            // Try ISO8601 with fractional seconds first
-            let formattersToTry: [ISO8601DateFormatter] = {
+            // Try ISO8601 formatters first
+            let iso8601Formatters: [ISO8601DateFormatter] = {
                 let withFractional = ISO8601DateFormatter()
                 withFractional.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
 
@@ -78,7 +78,30 @@ class APIClient: APIClientProtocol {
                 return [withFractional, standard]
             }()
 
-            for formatter in formattersToTry {
+            for formatter in iso8601Formatters {
+                if let date = formatter.date(from: dateString) {
+                    return date
+                }
+            }
+
+            // Try DateFormatter for dates without timezone (e.g. "2026-02-09T03:00:29.109670")
+            let dateFormatters: [DateFormatter] = {
+                let withFractional = DateFormatter()
+                withFractional.dateFormat = "yyyy-MM-dd'T'HH:mm:ss.SSSSSS"
+                withFractional.timeZone = TimeZone(identifier: "UTC")
+
+                let withMillis = DateFormatter()
+                withMillis.dateFormat = "yyyy-MM-dd'T'HH:mm:ss.SSS"
+                withMillis.timeZone = TimeZone(identifier: "UTC")
+
+                let standard = DateFormatter()
+                standard.dateFormat = "yyyy-MM-dd'T'HH:mm:ss"
+                standard.timeZone = TimeZone(identifier: "UTC")
+
+                return [withFractional, withMillis, standard]
+            }()
+
+            for formatter in dateFormatters {
                 if let date = formatter.date(from: dateString) {
                     return date
                 }

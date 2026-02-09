@@ -195,10 +195,10 @@ struct BlobTabBarItem: View {
 
 struct JournalView: View {
     @EnvironmentObject var viewModel: JournalViewModel
-    @Query(sort: \Accomplishment.createdAt, order: .reverse) private var cachedAccomplishments: [Accomplishment]
 
     @State private var isCardFlipped = false
     @State private var selectedGlimmer: Accomplishment?
+    @State private var selectedWarmMessage: String?  // AI-generated warm message
     @State private var selectedDate: Date = Date()
 
     // Calendar entry popup state (moved from MoodCalendarCard)
@@ -209,16 +209,12 @@ struct JournalView: View {
     private let themeBrown = Color(red: 0.325, green: 0.212, blue: 0.188)
 
     // Convert API data to Accomplishment for compatibility with child views
-    // Always prefer API data over cached SwiftData entries
+    // Only use API data - no SwiftData cache mixing
     private var accomplishments: [Accomplishment] {
-        // Convert JournalRecords from API to Accomplishments
-        let apiAccomplishments = viewModel.journals.compactMap { journal -> Accomplishment? in
+        viewModel.journals.compactMap { journal -> Accomplishment? in
             let moodRecord = viewModel.moods.first { $0.localDate == journal.localDate }
             return Accomplishment(from: journal, mood: moodRecord)
         }
-
-        // Return API data if available, otherwise fall back to cache
-        return apiAccomplishments.isEmpty ? cachedAccomplishments : apiAccomplishments
     }
 
     var body: some View {
@@ -231,6 +227,7 @@ struct JournalView: View {
                     GatherLightFlipCard(
                         isFlipped: $isCardFlipped,
                         accomplishment: selectedGlimmer,
+                        warmMessage: selectedWarmMessage,
                         onGather: catchGlimmer
                     )
                     .padding(.top, 8)
@@ -269,11 +266,40 @@ struct JournalView: View {
 
     private func catchGlimmer() {
         Task {
-            if let journal = await viewModel.getRandomJournal() {
+            // Try to get journal with AI warm message first
+            if let journalWithMsg = await viewModel.getRandomJournalWithMessage() {
+                let moodRecord = viewModel.moods.first { $0.localDate == journalWithMsg.localDate }
+                selectedGlimmer = Accomplishment(
+                    text: journalWithMsg.content,
+                    mood: moodRecord.flatMap { Mood.from(score: $0.score) },
+                    createdAt: journalWithMsg.createdAt,
+                    localDate: journalWithMsg.localDate,
+                    journalId: journalWithMsg.journalId,
+                    moodId: moodRecord?.moodId
+                )
+                // Extract a random warm message from alternatives
+                if let warmMessages = journalWithMsg.warmMessage?.alternatives,
+                   !warmMessages.isEmpty {
+                    let randomIndex = Int.random(in: 0..<warmMessages.count)
+                    selectedWarmMessage = warmMessages[randomIndex].warmMessage
+                } else {
+                    selectedWarmMessage = nil
+                }
+            } else if let journal = await viewModel.getRandomJournal() {
+                // Fallback: get random journal without AI message
                 let moodRecord = viewModel.moods.first { $0.localDate == journal.localDate }
-                selectedGlimmer = Accomplishment(from: journal, mood: moodRecord)
+                selectedGlimmer = Accomplishment(
+                    text: journal.content,
+                    mood: moodRecord.flatMap { Mood.from(score: $0.score) },
+                    createdAt: journal.createdAt,
+                    localDate: journal.localDate,
+                    journalId: journal.journalId,
+                    moodId: moodRecord?.moodId
+                )
+                selectedWarmMessage = nil  // No AI message available
             } else {
                 selectedGlimmer = nil
+                selectedWarmMessage = nil
             }
             withAnimation(.easeInOut(duration: 0.4)) {
                 isCardFlipped = true
@@ -288,12 +314,14 @@ struct JournalView: View {
 struct GatherLightFlipCard: View {
     @Binding var isFlipped: Bool
     let accomplishment: Accomplishment?
+    let warmMessage: String?  // AI-generated warm message from Gemini
     let onGather: () -> Void
 
     private let themeBrown = Color(red: 0.325, green: 0.212, blue: 0.188)
     private let cardBlue = Color(red: 0.84, green: 0.91, blue: 1.0)
 
-    private let insights = [
+    // Fallback insights when no AI message is available
+    private let fallbackInsights = [
         "Simple moments can still mean something.",
         "You noticed the light. That's enough.",
         "This was worth holding onto.",
@@ -303,8 +331,12 @@ struct GatherLightFlipCard: View {
     ]
 
     private var insight: String {
+        // Use AI-generated warm message if available, otherwise use fallback
+        if let warmMessage = warmMessage, !warmMessage.isEmpty {
+            return warmMessage
+        }
         let day = Calendar.current.component(.day, from: Date())
-        return insights[day % insights.count]
+        return fallbackInsights[day % fallbackInsights.count]
     }
 
     var body: some View {
@@ -379,6 +411,18 @@ struct GatherLightFlipCard: View {
 
     private var backCard: some View {
         VStack(spacing: 0) {
+            // Mood emoji with colored background (if mood exists)
+            if let accomplishment = accomplishment, let mood = accomplishment.mood {
+                ZStack {
+                    Circle()
+                        .fill(mood.color)
+                        .frame(width: 50, height: 50)
+                    MoodEmojiView(mood: mood, size: 36)
+                }
+                .padding(.top, 16)
+                .padding(.bottom, 8)
+            }
+
             // Blue inner card with glimmer content
             VStack(spacing: 12) {
                 if let accomplishment = accomplishment {
@@ -409,7 +453,7 @@ struct GatherLightFlipCard: View {
                     .fill(cardBlue)
             )
             .padding(.horizontal, 16)
-            .padding(.top, 16)
+            .padding(.top, accomplishment?.mood == nil ? 16 : 0)
 
             // Encouraging message
             Text(insight)
@@ -723,79 +767,122 @@ struct SelectedDayMoodCard: View {
 
     private let calendar = Calendar.current
     private let themeBrown = Color(red: 0.325, green: 0.212, blue: 0.188)
-    private let insights = [
-        "Simple moments can still mean something.",
-        "You noticed the light. That's enough.",
-        "This was worth holding onto.",
-        "The small things carry the most warmth.",
-        "You showed up, and that matters.",
-        "Every glimmer adds to the whole.",
-    ]
+    private let cardBg = Color(red: 0.980, green: 0.980, blue: 0.976)
 
-    private var selectedAccomplishment: Accomplishment? {
+    // Get all entries for selected date
+    private var selectedEntries: [Accomplishment] {
         let dateFormatter = DateFormatter()
         dateFormatter.dateFormat = "yyyy-MM-dd"
         let dateString = dateFormatter.string(from: selectedDate)
-        return accomplishments.first { $0.localDate == dateString }
+        return accomplishments.filter { $0.localDate == dateString }
+            .sorted { $0.createdAt > $1.createdAt }  // Newest first
     }
 
-    private var insight: String {
-        let day = calendar.component(.day, from: selectedDate)
-        return insights[day % insights.count]
+    // Get mood from first entry (all entries on same day share the mood)
+    private var selectedMood: Mood? {
+        selectedEntries.first?.mood
     }
 
     var body: some View {
-        if let entry = selectedAccomplishment {
-            let mood = entry.mood ?? .happy
+        if !selectedEntries.isEmpty {
+            VStack(spacing: 16) {
+                // Mood section (if mood exists)
+                if let mood = selectedMood {
+                    HStack(spacing: 12) {
+                        // Mood emoji with colored background
+                        ZStack {
+                            Circle()
+                                .fill(mood.color)
+                                .frame(width: 50, height: 50)
+                            MoodEmojiView(mood: mood, size: 36)
+                        }
 
-            VStack(spacing: 12) {
-                // Mood name
-                Text(mood.rawValue)
-                    .font(.custom("Urbanist", size: 24).weight(.medium))
-                    .foregroundColor(themeBrown)
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(mood.rawValue)
+                                .font(.custom("Urbanist", size: 20).weight(.medium))
+                                .foregroundColor(themeBrown)
 
-                // Mood emoji with colored background
-                ZStack {
-                    Circle()
-                        .fill(mood.color)
-                        .frame(width: 80, height: 80)
-                    MoodEmojiView(mood: mood, size: 60)
+                            Text(formattedDate(selectedDate))
+                                .font(.custom("Urbanist", size: 12))
+                                .foregroundColor(themeBrown.opacity(0.5))
+                        }
+
+                        Spacer()
+                    }
+                    .padding(.horizontal, 4)
+                } else {
+                    // No mood, just show date
+                    HStack {
+                        Text(formattedDate(selectedDate))
+                            .font(.custom("Urbanist", size: 16).weight(.medium))
+                            .foregroundColor(themeBrown)
+                        Spacer()
+                    }
+                    .padding(.horizontal, 4)
                 }
-                .frame(width: 130, height: 120)
 
-                // Entry text
-                Text("\u{201C}" + entry.text + "\u{201D}")
-                    .font(.custom("Baskerville", size: 15))
-                    .foregroundColor(themeBrown)
-                    .multilineTextAlignment(.center)
-                    .lineSpacing(4)
-                    .fixedSize(horizontal: false, vertical: true)
+                // Divider
+                Rectangle()
+                    .fill(themeBrown.opacity(0.1))
+                    .frame(height: 1)
 
-                // Timestamp
-                Text(formattedTimestamp(entry.createdAt))
-                    .font(.custom("Urbanist", size: 10))
-                    .foregroundColor(themeBrown.opacity(0.5))
-
-                // Insight
-                Text(insight)
-                    .font(.custom("Urbanist", size: 12))
-                    .foregroundColor(themeBrown.opacity(0.6))
-                    .italic()
+                // Journal entries list
+                VStack(spacing: 12) {
+                    ForEach(selectedEntries, id: \.journalId) { entry in
+                        JournalEntryRow(entry: entry)
+                    }
+                }
             }
             .padding(16)
             .frame(maxWidth: .infinity)
             .background(
                 RoundedRectangle(cornerRadius: 24)
-                    .fill(Color(red: 0.980, green: 0.980, blue: 0.976))
+                    .fill(cardBg)
             )
             .padding(.horizontal, 32)
             .animation(.easeInOut(duration: 0.3), value: selectedDate)
         }
     }
 
-    private func formattedTimestamp(_ date: Date) -> String {
+    private func formattedDate(_ date: Date) -> String {
         let formatter = DateFormatter()
-        formatter.dateFormat = "'Written on' MMM d, yyyy '·' h:mm a"
+        formatter.dateFormat = "EEEE, MMM d"
+        return formatter.string(from: date)
+    }
+}
+
+// MARK: - Journal Entry Row
+
+struct JournalEntryRow: View {
+    let entry: Accomplishment
+
+    private let themeBrown = Color(red: 0.325, green: 0.212, blue: 0.188)
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            // Entry text
+            Text(entry.text)
+                .font(.custom("Urbanist", size: 14))
+                .foregroundColor(themeBrown)
+                .lineSpacing(3)
+                .frame(maxWidth: .infinity, alignment: .leading)
+
+            // Timestamp
+            Text(formattedTime(entry.createdAt))
+                .font(.custom("Urbanist", size: 11))
+                .foregroundColor(themeBrown.opacity(0.4))
+        }
+        .padding(12)
+        .frame(maxWidth: .infinity)
+        .background(
+            RoundedRectangle(cornerRadius: 12)
+                .fill(Color.white)
+        )
+    }
+
+    private func formattedTime(_ date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "h:mm a"
         return formatter.string(from: date)
     }
 }
@@ -960,7 +1047,7 @@ struct MoodCalendarCard: View {
 
             // Day headers
             HStack(spacing: 8) {
-                ForEach(dayLabels, id: \.self) { label in
+                ForEach(Array(dayLabels.enumerated()), id: \.offset) { _, label in
                     Text(label)
                         .font(.custom("Urbanist", size: 14).weight(.semibold))
                         .foregroundColor(gray80)

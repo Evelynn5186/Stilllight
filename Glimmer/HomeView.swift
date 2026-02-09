@@ -5,12 +5,12 @@ import Speech
 struct HomeView: View {
     // MARK: - Environment
     @EnvironmentObject var viewModel: HomeViewModel
-    @Environment(\.modelContext) private var modelContext  // Keep for cache
 
     // MARK: - UI State
     @State private var showGlimmerInput = false
     @State private var showGlimmerOverlay = false
     @State private var selectedGlimmer: Accomplishment?
+    @State private var selectedWarmMessage: String?  // AI warm message for overlay
     @State private var breathGlow: CGFloat = 0
     @State private var isOrbPressed = false
 
@@ -19,6 +19,8 @@ struct HomeView: View {
     @State private var selectedMood: Mood?
     @State private var showMoreMoods = false
     @State private var showEncouragement = false
+    @State private var encouragementMessage: String?  // AI message for encouragement
+    @State private var isLoadingAIMessage = false     // Loading state for AI message
     @StateObject private var speechRecognizer = SpeechRecognizer()
     @FocusState private var isTextFieldFocused: Bool
     private let maxCharacters = 300
@@ -127,13 +129,17 @@ struct HomeView: View {
                 normalContent
             }
 
-            // Encouragement overlay
+            // Encouragement overlay with AI message
             if showEncouragement {
                 InputEncouragementOverlay(
                     onDismiss: {
                         showEncouragement = false
                         showGlimmerInput = false
-                    }
+                        encouragementMessage = nil
+                        isLoadingAIMessage = false
+                    },
+                    aiMessage: encouragementMessage,
+                    isLoading: isLoadingAIMessage
                 )
             }
 
@@ -141,10 +147,12 @@ struct HomeView: View {
             if showGlimmerOverlay {
                 GlimmerOverlay(
                     accomplishment: selectedGlimmer,
+                    warmMessage: selectedWarmMessage,
                     isPresented: $showGlimmerOverlay
                 )
                 .onTapGesture {
                     showGlimmerOverlay = false
+                    selectedWarmMessage = nil
                 }
             }
         }
@@ -601,14 +609,44 @@ struct HomeView: View {
         let trimmedText = glimmerText.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmedText.isEmpty else { return }
         UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+
+        // Show loading state immediately
+        isLoadingAIMessage = true
         showEncouragement = true
+
         let moodToSave = selectedMood
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.8) {
-            saveGlimmer(trimmedText, mood: moodToSave)
+        let textToSave = trimmedText
+
+        Task {
+            // 1. Save the glimmer first (API handles storage)
+            let success = await viewModel.saveGlimmer(text: textToSave, mood: moodToSave)
+
+            // Note: We don't insert into SwiftData here anymore
+            // JournalView will fetch fresh data from API
+
+            // 2. Fetch AI warm message
+            if let journalWithMsg = await viewModel.getRandomGlimmer() {
+                if let warmMessages = journalWithMsg.warmMessage?.alternatives,
+                   !warmMessages.isEmpty {
+                    let randomIndex = Int.random(in: 0..<warmMessages.count)
+                    encouragementMessage = warmMessages[randomIndex].warmMessage
+                }
+            }
+
+            // 3. Show the message (stop loading)
+            isLoadingAIMessage = false
+            UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+
+            // 4. Clear input state
             glimmerText = ""
             selectedMood = nil
             showMoreMoods = false
+
+            // 5. Auto-dismiss after showing the message
+            try? await Task.sleep(nanoseconds: 3_000_000_000) // 3 seconds
             showGlimmerInput = false
+            showEncouragement = false
+            encouragementMessage = nil
         }
     }
 
@@ -620,31 +658,43 @@ struct HomeView: View {
         }
     }
 
-    private func saveGlimmer(_ text: String, mood: Mood? = nil) {
-        Task {
-            let success = await viewModel.saveGlimmer(text: text, mood: mood)
-            if success {
-                // Also cache locally in SwiftData
-                let accomplishment = Accomplishment(text: text, mood: mood)
-                modelContext.insert(accomplishment)
-            }
-            UIImpactFeedbackGenerator(style: .medium).impactOccurred()
-        }
-    }
-
     private func catchGlimmer() {
         Task {
+            // First ensure moods are loaded
+            await viewModel.loadMoods()
+
+            // Try to get journal with AI warm message first
             if let journalWithMsg = await viewModel.getRandomGlimmer() {
-                // Convert to Accomplishment for display
-                let mood = Mood.from(score: 1) // Default mood
+                let mood = viewModel.getMoodForDate(journalWithMsg.localDate)
                 selectedGlimmer = Accomplishment(
                     text: journalWithMsg.content,
                     mood: mood,
                     createdAt: journalWithMsg.createdAt,
+                    localDate: journalWithMsg.localDate,
                     journalId: journalWithMsg.journalId
                 )
+                // Extract warm message from API response
+                if let warmMessages = journalWithMsg.warmMessage?.alternatives,
+                   !warmMessages.isEmpty {
+                    let randomIndex = Int.random(in: 0..<warmMessages.count)
+                    selectedWarmMessage = warmMessages[randomIndex].warmMessage
+                } else {
+                    selectedWarmMessage = nil
+                }
+            } else if let journal = await viewModel.getRandomJournalFallback() {
+                // Fallback: get random journal without AI message
+                let mood = viewModel.getMoodForDate(journal.localDate)
+                selectedGlimmer = Accomplishment(
+                    text: journal.content,
+                    mood: mood,
+                    createdAt: journal.createdAt,
+                    localDate: journal.localDate,
+                    journalId: journal.journalId
+                )
+                selectedWarmMessage = nil  // No AI message available
             } else {
                 selectedGlimmer = nil
+                selectedWarmMessage = nil
             }
             showGlimmerOverlay = true
             UIImpactFeedbackGenerator(style: .soft).impactOccurred()
@@ -720,9 +770,29 @@ struct LightDownButtonStyle: ButtonStyle {
 
 struct GlimmerOverlay: View {
     let accomplishment: Accomplishment?
+    var warmMessage: String? = nil  // AI-generated warm message
     @Binding var isPresented: Bool
 
     private let themeBrown = Color(red: 0.325, green: 0.212, blue: 0.188)
+    private let cardBlue = Color(red: 0.84, green: 0.91, blue: 1.0)
+
+    // Fallback messages when no AI message is available
+    private let fallbackInsights = [
+        "Simple moments can still mean something.",
+        "You noticed the light. That's enough.",
+        "This was worth holding onto.",
+        "The small things carry the most warmth.",
+        "You showed up, and that matters.",
+        "Every glimmer adds to the whole.",
+    ]
+
+    private var insight: String {
+        if let warmMessage = warmMessage, !warmMessage.isEmpty {
+            return warmMessage
+        }
+        let day = Calendar.current.component(.day, from: Date())
+        return fallbackInsights[day % fallbackInsights.count]
+    }
 
     var body: some View {
         ZStack {
@@ -737,22 +807,50 @@ struct GlimmerOverlay: View {
                     .padding(.bottom, 4)
 
                 if let accomplishment = accomplishment {
+                    // Mood emoji with colored background (if mood exists)
                     if let mood = accomplishment.mood {
-                        Text(mood.rawValue)
-                            .font(.custom("Urbanist", size: 20).weight(.medium))
-                            .foregroundColor(themeBrown)
+                        ZStack {
+                            Circle()
+                                .fill(mood.color)
+                                .frame(width: 60, height: 60)
+                            MoodEmojiView(mood: mood, size: 44)
+                        }
+                        .padding(.bottom, 4)
                     }
 
-                    Text(accomplishment.text)
-                        .font(.custom("Baskerville", size: 17))
-                        .foregroundColor(themeBrown)
+                    // Journal content in blue card
+                    VStack(spacing: 8) {
+                        Text("\u{201C}" + accomplishment.text + "\u{201D}")
+                            .font(.custom("Baskerville", size: 15))
+                            .foregroundColor(themeBrown)
+                            .multilineTextAlignment(.center)
+                            .lineSpacing(4)
+                            .fixedSize(horizontal: false, vertical: true)
+
+                        Text(formattedDate(accomplishment.createdAt))
+                            .font(.custom("Urbanist", size: 11))
+                            .foregroundColor(themeBrown.opacity(0.5))
+                    }
+                    .padding(16)
+                    .frame(maxWidth: .infinity)
+                    .background(
+                        RoundedRectangle(cornerRadius: 16)
+                            .fill(cardBlue)
+                    )
+
+                    // AI warm message below
+                    Text(insight)
+                        .font(.custom("Urbanist", size: 14))
+                        .foregroundColor(themeBrown.opacity(0.7))
+                        .italic()
                         .multilineTextAlignment(.center)
                         .lineSpacing(4)
-                        .fixedSize(horizontal: false, vertical: true)
+                        .padding(.top, 4)
 
-                    Text(formattedDate(accomplishment.createdAt))
-                        .font(.custom("Urbanist", size: 13))
-                        .foregroundColor(themeBrown.opacity(0.6))
+                    // Tap to dismiss hint
+                    Text("Tap to close")
+                        .font(.custom("Urbanist", size: 11))
+                        .foregroundColor(themeBrown.opacity(0.4))
                         .padding(.top, 4)
                 } else {
                     Text("Keep collecting glimmers,\nthey'll be here waiting for you.")
@@ -762,8 +860,8 @@ struct GlimmerOverlay: View {
                         .lineSpacing(4)
                 }
             }
-            .padding(.horizontal, 32)
-            .padding(.vertical, 32)
+            .padding(.horizontal, 24)
+            .padding(.vertical, 28)
             .frame(maxWidth: 300)
             .background(
                 RoundedRectangle(cornerRadius: 24)

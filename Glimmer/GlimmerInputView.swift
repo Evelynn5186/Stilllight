@@ -342,9 +342,11 @@ struct GlimmerInputView: View {
 
 struct InputEncouragementOverlay: View {
     let onDismiss: () -> Void
+    var aiMessage: String? = nil  // AI-generated warm message
+    var isLoading: Bool = false   // Loading state while fetching AI message
 
     private let themeBrown = Color(red: 0.325, green: 0.212, blue: 0.188)
-    private let encouragements = [
+    private let fallbackMessages = [
         "You're more alive than you think.",
         "That took courage. I see you.",
         "Small steps still move you forward.",
@@ -357,26 +359,54 @@ struct InputEncouragementOverlay: View {
         "You chose to show up. That's everything."
     ]
 
-    @State private var message: String = ""
+    @State private var fallbackMessage: String = ""
+
+    private var displayMessage: String {
+        if let aiMessage = aiMessage, !aiMessage.isEmpty {
+            return aiMessage
+        }
+        return fallbackMessage
+    }
 
     var body: some View {
         ZStack {
             Color.black.opacity(0.2)
                 .ignoresSafeArea()
                 .onTapGesture {
-                    onDismiss()
+                    if !isLoading {
+                        onDismiss()
+                    }
                 }
 
             VStack(spacing: 16) {
-                Image(systemName: "sparkle")
-                    .font(.system(size: 28, weight: .light))
-                    .foregroundColor(Color(red: 1.0, green: 0.85, blue: 0.4))
+                if isLoading {
+                    // Loading state
+                    ProgressView()
+                        .scaleEffect(1.2)
+                        .tint(Color(red: 1.0, green: 0.85, blue: 0.4))
 
-                Text(message)
-                    .font(.custom("Urbanist", size: 18).weight(.medium))
-                    .foregroundColor(themeBrown)
-                    .multilineTextAlignment(.center)
-                    .lineSpacing(4)
+                    Text("Preparing a message for you...")
+                        .font(.custom("Urbanist", size: 14))
+                        .foregroundColor(themeBrown.opacity(0.6))
+                } else {
+                    Image(systemName: "sparkle")
+                        .font(.system(size: 28, weight: .light))
+                        .foregroundColor(Color(red: 1.0, green: 0.85, blue: 0.4))
+
+                    Text(displayMessage)
+                        .font(.custom("Urbanist", size: 18).weight(.medium))
+                        .foregroundColor(themeBrown)
+                        .multilineTextAlignment(.center)
+                        .lineSpacing(4)
+
+                    // Show "from Glimmer" label if it's an AI message
+                    if aiMessage != nil && !aiMessage!.isEmpty {
+                        Text("— from Glimmer")
+                            .font(.custom("Urbanist", size: 12))
+                            .foregroundColor(themeBrown.opacity(0.5))
+                            .italic()
+                    }
+                }
             }
             .padding(.horizontal, 36)
             .padding(.vertical, 36)
@@ -389,7 +419,7 @@ struct InputEncouragementOverlay: View {
             .transition(.scale(scale: 0.9).combined(with: .opacity))
         }
         .onAppear {
-            message = encouragements.randomElement() ?? encouragements[0]
+            fallbackMessage = fallbackMessages.randomElement() ?? fallbackMessages[0]
         }
     }
 }
