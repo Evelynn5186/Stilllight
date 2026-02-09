@@ -120,11 +120,6 @@ struct HomeView: View {
                 checkedInContent
             }
 
-            // Normal state character (dark breathing) - fades out when input mode
-            if !pauseCheckIns && !hasCheckedInToday && !showGlimmerInput {
-                normalCharacterView
-            }
-
             if pauseCheckIns {
                 sleepModeContent
             } else if showGlimmerInput {
@@ -144,8 +139,8 @@ struct HomeView: View {
                     glimmerInputContent
                 }
                 .transition(.opacity)
-            } else if !hasCheckedInToday {
-                normalContentUI
+            } else {
+                normalContent
             }
 
             // Encouragement overlay with AI message
@@ -294,38 +289,39 @@ struct HomeView: View {
 
     // MARK: - Normal Content
 
-    // Character view only (for cross-fade with Lightup4)
-    private var normalCharacterView: some View {
-        Button(action: { showGlimmerInput = true }) {
-            Color.clear
-                .frame(width: 67, height: 63)
-                .contentShape(Rectangle())
-        }
-        .buttonStyle(LightDownButtonStyle(breathGlow: $breathGlow, isOrbPressed: $isOrbPressed))
-    }
-
-    // UI elements (hint pill, spacers)
-    private var normalContentUI: some View {
+    private var normalContent: some View {
         VStack(spacing: 0) {
             Spacer()
 
             // Hint pill - shown when not checked in
-            Text("Tap the light to mark today.")
-                .font(.custom("Urbanist", size: 12).weight(.medium))
-                .foregroundColor(Color(red: 0.66, green: 0.64, blue: 0.62))
-                .padding(.horizontal, 8.11)
-                .padding(.vertical, 4.06)
-                .frame(width: 187, height: 29)
-                .cornerRadius(6759.89)
-                .overlay(
-                    RoundedRectangle(cornerRadius: 6759.89)
-                        .inset(by: 0.34)
-                        .stroke(Color(red: 0.66, green: 0.64, blue: 0.62), lineWidth: 0.68)
-                )
-                .padding(.bottom, 32)
+            if !hasCheckedInToday {
+                Text("Tap the light to mark today.")
+                    .font(.custom("Urbanist", size: 12).weight(.medium))
+                    .foregroundColor(Color(red: 0.66, green: 0.64, blue: 0.62))
+                    .padding(.horizontal, 8.11)
+                    .padding(.vertical, 4.06)
+                    .frame(width: 187, height: 29)
+                    .cornerRadius(6759.89)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 6759.89)
+                            .inset(by: 0.34)
+                            .stroke(Color(red: 0.66, green: 0.64, blue: 0.62), lineWidth: 0.68)
+                    )
+                    .padding(.bottom, 32)
+            }
 
-            // Invisible spacer where character would be
-            Color.clear.frame(width: 67, height: 63)
+            // Character/Light illustration
+            if hasCheckedInToday {
+                // Checked-in state uses absolute positioning
+                EmptyView()
+            } else {
+                Button(action: { showGlimmerInput = true }) {
+                    Color.clear
+                        .frame(width: 67, height: 63)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(LightDownButtonStyle(breathGlow: $breathGlow, isOrbPressed: $isOrbPressed))
+            }
 
             Spacer()
 
