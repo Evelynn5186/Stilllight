@@ -16,12 +16,13 @@ class HomeViewModel: ObservableObject {
     // MARK: - Computed Properties
 
     var daysSinceLastCheckIn: Int {
-        guard let journals = try? GlimmerService.shared.cachedJournals.first else {
+        // Get the most recent journal (last in array, or sort by date)
+        let journals = GlimmerService.shared.cachedJournals
+        guard let mostRecent = journals.max(by: { $0.createdAt < $1.createdAt }) else {
             return 999
         }
         let calendar = Calendar.current
-        let lastDate = journals.createdAt
-        let days = calendar.dateComponents([.day], from: calendar.startOfDay(for: lastDate), to: calendar.startOfDay(for: Date())).day ?? 0
+        let days = calendar.dateComponents([.day], from: calendar.startOfDay(for: mostRecent.createdAt), to: calendar.startOfDay(for: Date())).day ?? 0
         return days
     }
 

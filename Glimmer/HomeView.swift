@@ -36,84 +36,84 @@ struct HomeView: View {
     private var daysSinceLastCheckIn: Int { viewModel.daysSinceLastCheckIn }
     private var isLongtimeNoVisit: Bool { viewModel.isLongtimeNoVisit }
 
+    // MARK: - Background Gradient
+    @ViewBuilder
+    private var backgroundGradient: some View {
+        if pauseCheckIns {
+            // Sleep Mode: dark navy gradient
+            LinearGradient(
+                stops: [
+                    .init(color: Color(red: 0.05, green: 0.07, blue: 0.15), location: 0.00),
+                    .init(color: Color(red: 0.08, green: 0.11, blue: 0.22), location: 0.82),
+                    .init(color: Color(red: 0.09, green: 0.13, blue: 0.25), location: 0.90),
+                ],
+                startPoint: UnitPoint(x: 0.62, y: 0.07),
+                endPoint: UnitPoint(x: 0.95, y: 1)
+            )
+        } else if showGlimmerInput {
+            // Input mode: warm cream gradient
+            LinearGradient(
+                stops: [
+                    .init(color: Color(red: 0.98, green: 0.93, blue: 0.76), location: 0.00),
+                    .init(color: Color(red: 0.98, green: 0.93, blue: 0.76), location: 0.71),
+                ],
+                startPoint: UnitPoint(x: 0.5, y: 0.32),
+                endPoint: UnitPoint(x: 0.5, y: 1)
+            )
+        } else if hasCheckedInToday {
+            // Checked-in mode: warm cream/yellow gradient
+            LinearGradient(
+                stops: [
+                    .init(color: Color(red: 0.96, green: 0.9, blue: 0.75), location: 0.00),
+                    .init(color: Color(red: 0.95, green: 0.87, blue: 0.64), location: 0.71),
+                ],
+                startPoint: UnitPoint(x: 0.5, y: 0.32),
+                endPoint: UnitPoint(x: 0.5, y: 1)
+            )
+        } else if isLongtimeNoVisit {
+            // Longtime no visit: dark blue-purple gradient
+            LinearGradient(
+                stops: [
+                    .init(color: Color(red: 0.129, green: 0.165, blue: 0.310), location: 0.0),
+                    .init(color: Color(red: 0.251, green: 0.306, blue: 0.471), location: 0.4),
+                    .init(color: Color(red: 0.353, green: 0.420, blue: 0.592), location: 0.7),
+                    .init(color: Color(red: 0.251, green: 0.302, blue: 0.478), location: 1.0)
+                ],
+                startPoint: .top,
+                endPoint: .bottom
+            )
+        } else {
+            // Unchecked state: breathing gradient
+            ZStack {
+                LinearGradient(
+                    stops: [
+                        .init(color: Color(red: 0.07, green: 0.09, blue: 0.11), location: 0.00),
+                        .init(color: Color(red: 0.17, green: 0.23, blue: 0.28), location: 0.60),
+                        .init(color: Color(red: 0.18, green: 0.24, blue: 0.29), location: 1.00),
+                    ],
+                    startPoint: UnitPoint(x: 0.45, y: 0.36),
+                    endPoint: UnitPoint(x: 0.88, y: 0.85)
+                )
+
+                LinearGradient(
+                    stops: [
+                        .init(color: Color(red: 0.07, green: 0.09, blue: 0.11), location: 0.00),
+                        .init(color: Color(red: 0.16, green: 0.22, blue: 0.27), location: 0.45),
+                        .init(color: Color(red: 0.16, green: 0.22, blue: 0.28), location: 0.96),
+                    ],
+                    startPoint: UnitPoint(x: 0.17, y: 0.46),
+                    endPoint: UnitPoint(x: 0.8, y: 0.95)
+                )
+                .opacity(isOrbPressed ? 1.0 : breathGlow)
+            }
+        }
+    }
+
     var body: some View {
         ZStack {
-            // Background - changes based on state
-            if pauseCheckIns {
-                // Sleep Mode: dark navy gradient
-                LinearGradient(
-                    stops: [
-                        .init(color: Color(red: 0.05, green: 0.07, blue: 0.15), location: 0.00),
-                        .init(color: Color(red: 0.08, green: 0.11, blue: 0.22), location: 0.82),
-                        .init(color: Color(red: 0.09, green: 0.13, blue: 0.25), location: 0.90),
-                    ],
-                    startPoint: UnitPoint(x: 0.62, y: 0.07),
-                    endPoint: UnitPoint(x: 0.95, y: 1)
-                )
+            // Background - use computed property to determine which gradient to show
+            backgroundGradient
                 .ignoresSafeArea()
-            } else if showGlimmerInput {
-                // Input mode: warm cream gradient
-                LinearGradient(
-                    stops: [
-                        .init(color: Color(red: 0.98, green: 0.93, blue: 0.76), location: 0.00),
-                        .init(color: Color(red: 0.98, green: 0.93, blue: 0.76), location: 0.71),
-                    ],
-                    startPoint: UnitPoint(x: 0.5, y: 0.32),
-                    endPoint: UnitPoint(x: 0.5, y: 1)
-                )
-                .ignoresSafeArea()
-            } else if hasCheckedInToday {
-                // Checked-in mode: warm cream/yellow gradient
-                LinearGradient(
-                    stops: [
-                        .init(color: Color(red: 0.96, green: 0.9, blue: 0.75), location: 0.00),
-                        .init(color: Color(red: 0.95, green: 0.87, blue: 0.64), location: 0.71),
-                    ],
-                    startPoint: UnitPoint(x: 0.5, y: 0.32),
-                    endPoint: UnitPoint(x: 0.5, y: 1)
-                )
-                .ignoresSafeArea()
-            } else if isLongtimeNoVisit {
-                // Longtime no visit: dark blue-purple gradient
-                LinearGradient(
-                    stops: [
-                        .init(color: Color(red: 0.129, green: 0.165, blue: 0.310), location: 0.0),  // #212A4F
-                        .init(color: Color(red: 0.251, green: 0.306, blue: 0.471), location: 0.4),  // #404E78
-                        .init(color: Color(red: 0.353, green: 0.420, blue: 0.592), location: 0.7),  // #5A6B97
-                        .init(color: Color(red: 0.251, green: 0.302, blue: 0.478), location: 1.0)   // #404D7A
-                    ],
-                    startPoint: .top,
-                    endPoint: .bottom
-                )
-                .ignoresSafeArea()
-            } else {
-                // Unchecked state: 两组背景渐变 + 图片一起呼吸变化
-                ZStack {
-                    // 第一组：球暗时的背景 (和 Lightdown 图片配合)
-                    LinearGradient(
-                        stops: [
-                            .init(color: Color(red: 0.07, green: 0.09, blue: 0.11), location: 0.00),
-                            .init(color: Color(red: 0.17, green: 0.23, blue: 0.28), location: 0.60),
-                            .init(color: Color(red: 0.18, green: 0.24, blue: 0.29), location: 1.00),
-                        ],
-                        startPoint: UnitPoint(x: 0.45, y: 0.36),
-                        endPoint: UnitPoint(x: 0.88, y: 0.85)
-                    )
-
-                    // 第二组：球亮时的背景 (和 LightdownHover 图片配合)
-                    LinearGradient(
-                        stops: [
-                            .init(color: Color(red: 0.07, green: 0.09, blue: 0.11), location: 0.00),
-                            .init(color: Color(red: 0.16, green: 0.22, blue: 0.27), location: 0.45),
-                            .init(color: Color(red: 0.16, green: 0.22, blue: 0.28), location: 0.96),
-                        ],
-                        startPoint: UnitPoint(x: 0.17, y: 0.46),
-                        endPoint: UnitPoint(x: 0.8, y: 0.95)
-                    )
-                    .opacity(isOrbPressed ? 1.0 : breathGlow)
-                }
-                .ignoresSafeArea()
-            }
 
             // Checked-in state: Lightup6 character + Gather button
             if hasCheckedInToday && !pauseCheckIns && !showGlimmerInput {
@@ -139,6 +139,9 @@ struct HomeView: View {
                     glimmerInputContent
                 }
                 .transition(.opacity)
+            } else if isLongtimeNoVisit {
+                // Longtime no visit: show sad character
+                longtimeNoVisitContent
             } else {
                 normalContent
             }
@@ -175,7 +178,10 @@ struct HomeView: View {
         .animation(.easeInOut(duration: 0.6), value: pauseCheckIns)
         .animation(.spring(response: 0.4, dampingFraction: 0.85), value: showGlimmerInput)
         .animation(.easeInOut(duration: 0.3), value: showEncouragement)
-        .onAppear {
+        .task {
+            checkTodayStatus()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: UIApplication.willEnterForegroundNotification)) { _ in
             checkTodayStatus()
         }
     }
@@ -227,6 +233,65 @@ struct HomeView: View {
                     Text("quietly holding your place.")
                         .font(.custom("Urbanist", size: 20).weight(.medium))
                         .foregroundColor(Color(red: 0.855, green: 0.855, blue: 0.855))
+                }
+                .multilineTextAlignment(.center)
+
+                Spacer().frame(height: 140)
+            }
+        }
+    }
+
+    // MARK: - Longtime No Visit Content
+
+    private var longtimeNoVisitContent: some View {
+        ZStack {
+            // Sad character image
+            GeometryReader { geo in
+                Image("LongtimeNoVisit")
+                    .resizable()
+                    .aspectRatio(contentMode: .fit)
+                    .frame(width: 350, height: 350)
+                    .position(
+                        x: geo.size.width / 2,
+                        y: geo.size.height / 2 - 40
+                    )
+            }
+            .ignoresSafeArea()
+
+            // UI overlay
+            VStack(spacing: 0) {
+                Spacer().frame(height: 120)
+
+                // Welcome back message
+                Text("It's been a while...")
+                    .font(.custom("Urbanist", size: 14).weight(.medium))
+                    .foregroundColor(Color(red: 0.659, green: 0.635, blue: 0.624))
+                    .padding(.horizontal, 20)
+                    .padding(.vertical, 10)
+                    .overlay(
+                        Capsule()
+                            .stroke(Color(red: 0.659, green: 0.635, blue: 0.624), lineWidth: 1)
+                    )
+
+                Spacer()
+
+                // Bottom message and button
+                VStack(spacing: 16) {
+                    Text("Welcome back.")
+                        .font(.custom("Urbanist", size: 20).weight(.medium))
+                        .foregroundColor(Color(red: 0.855, green: 0.855, blue: 0.855))
+
+                    Button(action: { showGlimmerInput = true }) {
+                        Text("Record a light")
+                            .font(.custom("Urbanist", size: 14).weight(.medium))
+                            .foregroundColor(.white)
+                            .padding(.horizontal, 24)
+                            .padding(.vertical, 12)
+                            .background(
+                                Capsule()
+                                    .fill(Color(red: 0.4, green: 0.45, blue: 0.55))
+                            )
+                    }
                 }
                 .multilineTextAlignment(.center)
 

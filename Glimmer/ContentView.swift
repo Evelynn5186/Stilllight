@@ -43,6 +43,14 @@ struct ContentView: View {
         }
         .ignoresSafeArea(.keyboard)
         .animation(.easeInOut(duration: 0.3), value: isDarkTheme)
+        .onChange(of: selectedTab) { _, newTab in
+            if newTab == 0 {
+                // Refresh Home status when returning to Home tab
+                Task {
+                    await homeViewModel.loadStatus()
+                }
+            }
+        }
     }
 }
 
