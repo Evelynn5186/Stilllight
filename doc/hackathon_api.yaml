@@ -1,0 +1,1842 @@
+openapi: 3.0.3
+info:
+  title: Mood Tracker API
+  version: 1.0.0
+  description: |
+    Daily Mood & idea record
+
+    ## key-feature
+    - Daily mood recording (1-10 scale)
+    - Text notes for ideas/events/inspirations
+    - AI-generated warm messages
+    - Mood history viewing and statistics
+    - Weekly/monthly insights
+
+    ## public endpoints (exposed to frontend)
+    These endpoints are directly accessible by the app:
+    - `/auth/*` - Authentication
+    - `/moods/*` - Mood records management
+    - `/insights/*` - AI insights and chat
+    - `/users/*` - User profile management
+    - `/Journals/*`
+    - `/Checkins/*`
+    - `/Safety/*`
+
+    ## internal endpoints
+    - `/internal/*` - Internal service APIs
+  contact:
+    name: Shiyu Chen
+  license:
+    name: Proprietary
+
+servers:
+  - url: http://localhost:8000/api/v1
+    description: local development
+
+tags:
+  - name: Auth
+    description: Authentication, token issuance, and session-aware flows
+  - name: Moods
+    description: Mood records CRUD operations
+  - name: Journals
+    description: Journals records CRUD operations
+  - name: Users
+    description: User profile and preferences management
+  - name: Insights
+    description: AI-generated insights and warm messages
+  - name: Checkins
+    description: Combined mood + journal check-ins
+  - name: Internal
+    description: Internal utilities
+  - name: Safety
+    description: Emergency contact and miss-checkin notification settings
+
+# Default: all endpoints require BearerAuth unless overridden by `security: []`
+security:
+  - BearerAuth: []
+
+paths:
+  # ===========================
+  # Authentication
+  # ===========================
+
+  /auth/register:
+    post:
+      tags: [Auth]
+      summary: Register new user
+      description: |
+        Create a new user account. No authentication required.
+
+        Behavior:
+        - On success, returns tokens to auto-login (same payload shape as /auth/login).
+
+        Rate Limit (suggested MVP):
+        - 5 requests per IP per hour
+      operationId: registerUser
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UserRegister'
+            example:
+              email: student@example.com
+              password: SecurePass123!
+              username: John Doe
+      responses:
+        '201':
+          description: Registration successful (auto-login)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseAuth'
+              example:
+                data:
+                  access_token: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+                  token_type: "Bearer"
+                  expires_in: 3600
+                  refresh_token: "rft_0b1f4c6a8e9d..."
+                  refresh_expires_in: 2592000
+                  session_id: "sess_7c1a2b3c4d"
+                  user:
+                    user_id: "550e8400-e29b-41d4-a716-446655440000"
+                    email: "student@example.com"
+                    username: "John Doe"
+                    timezone: "America/New_York"
+                    created_at: "2026-01-23T20:30:00Z"
+                message: "Registration successful"
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/HTTPValidationError'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+
+  /auth/login:
+    post:
+      tags: [Auth]
+      summary: User login
+      description: |
+        Authenticate user with email and password.
+
+        Issues:
+        - Access token (JWT, short-lived)
+        - Refresh token (treat as opaque, long-lived)
+        - session_id (for future multi-device extension)
+
+        Rate Limit (suggested MVP):
+        - 10 requests per IP per 10 minutes
+      operationId: loginUser
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UserLogin'
+            example:
+              email: student@example.com
+              password: SecurePass123!
+              device_name: iPhone 16
+              device_id: device_9b2f3c
+      responses:
+        '200':
+          description: Login successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseAuth'
+              example:
+                data:
+                  access_token: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+                  token_type: "Bearer"
+                  expires_in: 3600
+                  refresh_token: "rft_0b1f4c6a8e9d..."
+                  refresh_expires_in: 2592000
+                  session_id: "sess_7c1a2b3c4d"
+                  user:
+                    user_id: "550e8400-e29b-41d4-a716-446655440000"
+                    email: "student@example.com"
+                    username: "John Doe"
+                    timezone: "America/New_York"
+                    created_at: "2026-01-23T20:30:00Z"
+                message: "Login successful"
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '422':
+          $ref: '#/components/responses/HTTPValidationError'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+
+  /auth/refresh:
+    post:
+      tags: [Auth]
+      summary: Refresh access token
+      description: |
+        Exchange a valid refresh token for a new access token.
+
+        - Returns new access_token (1 hour expiry)
+        - Refresh token does NOT rotate (remains the same)
+        - Same refresh_token can be reused until 30-day expiry
+      operationId: refreshToken
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RefreshTokenRequest'
+            example:
+              refresh_token: "rft_0b1f4c6a8e9d..."
+              session_id: "sess_7c1a2b3c4d"
+      responses:
+        '200':
+          description: Token refreshed successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseAuth'
+              example:
+                data:
+                  access_token: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+                  token_type: "Bearer"
+                  expires_in: 3600
+                  refresh_token: "rft_new_123..."
+                  refresh_expires_in: 2592000
+                  session_id: "sess_7c1a2b3c4d"
+                  user:
+                    user_id: "550e8400-e29b-41d4-a716-446655440000"
+                    email: "student@example.com"
+                    username: "John Doe"
+                    timezone: "America/New_York"
+                    created_at: "2026-01-23T20:30:00Z"
+                message: "Token refreshed successfully"
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '422':
+          $ref: '#/components/responses/HTTPValidationError'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+
+  /auth/logout:
+    post:
+      tags: [Auth]
+      summary: User logout (revoke current session)
+      description: |
+        Revoke refresh token for a specific session (device logout).
+
+        Notes:
+        - Access tokens may remain valid until expiration (short-lived).
+        - After logout, refresh attempts for this session should fail with 401.
+      operationId: logoutUser
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LogoutRequest'
+            example:
+              session_id: "sess_7c1a2b3c4d"
+      responses:
+        '204':
+          description: Logout successful
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '422':
+          $ref: '#/components/responses/HTTPValidationError'
+
+  # ===========================
+  # Moods CRUD
+  # ===========================
+  
+  /moods:
+    post:
+      tags: [Moods]
+      summary: Record today's mood (once per local day)
+      description: |
+        Record mood for *today* based on the user's timezone.
+        
+        **Timezone Auto-Update:**
+        - If X-User-Timezone header provided and differs from stored,
+          user.timezone auto-updates.
+      operationId: createTodayMood
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/UserTimezoneHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MoodCreateRequest'
+            example:
+              score: 6
+      responses:
+        '201':
+          description: Mood recorded successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseMood'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '422':
+          $ref: '#/components/responses/HTTPValidationError'
+
+    get:
+      tags: [Moods]
+      summary: List mood records by local-date range
+      description: |
+        Returns mood records within the specified local-date range.
+        `from` and `to` are local dates (YYYY-MM-DD).
+      operationId: listMoods
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/UserTimezoneHeader'
+        - name: from
+          in: query
+          description: Start local date (YYYY-MM-DD)
+          schema:
+            type: string
+            format: date
+          required: false
+        - name: to
+          in: query
+          description: End local date (YYYY-MM-DD)
+          schema:
+            type: string
+            format: date
+          required: false
+      responses:
+        '200':
+          description: Mood list returned
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseMoodList'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '422':
+          $ref: '#/components/responses/HTTPValidationError'
+
+  /moods/today:
+    get:
+      tags: [Moods]
+      summary: Retrieve today's mood record
+      description: |
+        Returns mood for the user's current local day.
+        Returns 404 if no mood has been recorded today.
+      operationId: getTodayMood
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/UserTimezoneHeader'
+      responses:
+        '200':
+          description: Today's mood
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseMood'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  # --------- FUTURE DEVELOPMENT -----------------
+  /moods/events:
+    post:
+      tags: [Moods]
+      summary: | 
+        [FUTURE] Create mood event (multiple per day)
+      description: |
+        FUTURE FEATURE (not implemented in MVP).
+        This endpoint will allow multiple mood events in a single local day.
+      operationId: createMoodEvent
+      security:
+        - BearerAuth: []
+      responses:
+        '501':
+          description: Not implemented in MVP
+
+    get:
+      tags: [Moods]
+      summary: | 
+        [FUTURE] List mood events
+      description: FUTURE FEATURE - not implemented in MVP.
+      operationId: listMoodEvents
+      security:
+        - BearerAuth: []
+      responses:
+        '501':
+          description: Not implemented in MVP
+
+  /moods/today/events:
+    get:
+      tags: [Moods]
+      summary: | 
+        [FUTURE] List today's mood events
+      description: FUTURE FEATURE - not implemented in MVP.
+      operationId: listTodayMoodEvents
+      security:
+        - BearerAuth: []
+      responses:
+        '501':
+          description: Not implemented in MVP
+
+  # ===========================
+  # Journals
+  # ===========================
+  /journals:
+    post:
+      tags: [Journals]
+      summary: Create an idea
+      description: |
+        Create a new idea for the current user.
+
+        **Timezone Auto-Update:**
+        - If X-User-Timezone header provided and differs from stored,
+          user.timezone auto-updates.
+      operationId: createIdea
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/UserTimezoneHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/JournalCreateRequest'
+            example:
+              content: "Try a 5-minute gratitude note before sleep."
+      responses:
+        '201':
+          description: Journal created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseJournal'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '422':
+          $ref: '#/components/responses/HTTPValidationError'
+
+    get:
+      tags: [Journals]
+      summary: List ideas by local-date range
+      description: |
+        List ideas within a local-date range (inclusive).
+        `from` and `to` are local dates (YYYY-MM-DD).
+      operationId: listIdeas
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/UserTimezoneHeader'
+        - name: from
+          in: query
+          required: false
+          description: Start local date (inclusive), format YYYY-MM-DD
+          schema:
+            type: string
+            format: date
+          example: "2026-01-01"
+        - name: to
+          in: query
+          required: false
+          description: End local date (inclusive), format YYYY-MM-DD
+          schema:
+            type: string
+            format: date
+          example: "2026-01-31"
+        - name: limit
+          in: query
+          required: false
+          description: Max items to return (MVP simple pagination).
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 200
+            default: 50
+        - name: cursor
+          in: query
+          required: false
+          description: Optional cursor for pagination (future-friendly).
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Journal list returned
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseJournalList'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '422':
+          $ref: '#/components/responses/HTTPValidationError'
+
+  /journals/today:
+    get:
+      tags: [Journals]
+      summary: List today's journals
+      description: |
+        List all journals created in the user's current local day.
+        Returns 200 with an empty list if there are no journals today.
+
+        **Timezone Auto-Update:**
+        - If X-User-Timezone header provided and differs from stored,
+          user.timezone auto-updates.
+      operationId: listTodayJournals
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/UserTimezoneHeader'
+      responses:
+        '200':
+          description: Today's ideas
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseJournalList'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+  /journals/random:
+    get:
+      tags:
+      - Journals
+      summary: Get a random past journal entry (for UI quote)
+      description: 'Return one random journal entry created by the current user.
+
+
+        - Default: exclude today''s journals
+
+        - Returns 404 if user has no journals'
+      operationId: getRandomJournal
+      security: []
+      parameters:
+      - $ref: '#/components/parameters/UserTimezoneHeader'
+      - name: exclude_today
+        in: query
+        required: false
+        schema:
+          type: boolean
+          default: true
+        description: Exclude journals from today's local date
+      responses:
+        '200':
+          description: Random journal entry
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseJournal'
+        '404':
+          description: No journals found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseMessage'
+        '422':
+          $ref: '#/components/responses/HTTPValidationError'
+
+  /journals/random-with-msg:
+    get:
+      tags: [Journals]
+      summary: Get a random past journal with AI-generated warm message
+      description: |
+        Returns one random journal entry with an AI-generated warm message.
+        
+        **Use Case:**
+        - Post-checkin encouragement screen
+        - Daily inspiration quote
+        - Show user their past thoughts with supportive feedback
+        
+        **Lazy Generation (Performance Optimization):**
+        - If warm_message exists → return cached version
+        - If warm_message not exists → generate via AI → cache → return
+        - If AI fails → return journal with warm_message=null
+        
+        **Default Behavior:**
+        - Excludes today's journals (exclude_today=true)
+        - Returns 404 if user has no eligible journals
+        
+        **AI Generation:**
+        - Generates 3 alternative warm messages
+        - Each message <= 200 characters
+        - Tags: empathy, encouragement, calm, proud, grounding, support, hope
+        - Cached in database for future requests
+      operationId: getRandomJournalWithWarmMessage
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/UserTimezoneHeader'
+        - name: exclude_today
+          in: query
+          required: false
+          schema:
+            type: boolean
+            default: true
+          description: Exclude journals from today's local date
+      responses:
+        '200':
+          description: Random journal with warm message
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseJournalWithWarmMessage'
+              examples:
+                success:
+                  summary: Successful with warm message
+                  value:
+                    data:
+                      journal_id: "b2c3d4e5-f6a7-4321-9876-234567890def"
+                      local_date: "2026-02-03"
+                      title: "Morning thoughts"
+                      content: "Today was a good day. Met with advisor and made progress on thesis."
+                      occurred_at_utc: "2026-02-03T14:20:00Z"
+                      timezone_used: "America/New_York"
+                      created_at: "2026-02-03T14:20:00Z"
+                      warm_message:
+                        message_id: "c3d4e5f6-a7b8-5432-9876-345678901abc"
+                        alternatives:
+                          - warm_message: "That sounds like meaningful progress. Take a moment to appreciate this step forward."
+                            tags:
+                              - empathy
+                              - encouragement
+                          - warm_message: "I hear you. Meeting with your advisor can feel big. You're doing great."
+                            tags:
+                              - support
+                              - calm
+                          - warm_message: "You're making real progress on your thesis. Keep trusting your process."
+                            tags:
+                              - proud
+                              - hope
+                        generated_at: "2026-02-05T10:30:00Z"
+                    message: "OK"
+                
+                ai_failed:
+                  summary: AI generation failed (graceful degradation)
+                  value:
+                    data:
+                      journal_id: "b2c3d4e5-f6a7-4321-9876-234567890def"
+                      local_date: "2026-02-03"
+                      content: "Today was a good day. Met with advisor and made progress on thesis."
+                      occurred_at_utc: "2026-02-03T14:20:00Z"
+                      timezone_used: "America/New_York"
+                      created_at: "2026-02-03T14:20:00Z"
+                      warm_message: null
+                    message: "OK (warm message generation failed)"
+        
+        '404':
+          description: No journals found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseMessage'
+              example:
+                message: "No journals found"
+        
+        '422':
+          $ref: '#/components/responses/HTTPValidationError'
+
+  # ===========================
+  # User
+  # ===========================
+  /users/me:
+    get:
+      tags: [Users]
+      summary: Get current user profile
+      description: |
+        Returns the profile of the currently authenticated user.
+
+        ## App Launch Flow
+        **On every app launch, call this endpoint WITH X-User-Timezone header to update user timezone**
+
+        **Timezone Auto-Update:**
+        - If X-User-Timezone header provided and differs from stored value,
+        user.timezone will be auto-updated silently.
+      operationId: getMe
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/UserTimezoneHeader'
+      responses:
+        '200':
+          description: Current user profile
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseUserProfile'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+    patch:
+      tags: [Users]
+      summary: Update current user profile
+      description: |
+        Partially update the current user's profile.
+        
+        - Supports updating timezone and display name.
+        - Intended usage: app startup can sync system timezone to server.
+      operationId: updateMe
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/UserTimezoneHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UserProfileUpdateRequest'
+            example:
+              timezone: "America/New_York"
+      responses:
+        '200':
+          description: Updated user profile
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseUserProfile'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '422':
+          $ref: '#/components/responses/HTTPValidationError'
+
+  /users/me/emergency-contact:
+    get:
+      tags:
+      - Safety
+      summary: Get emergency contact
+      operationId: getEmergencyContact
+      security: []
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseEmergencyContact'
+        '404':
+          description: Not set
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseEmergencyContact'
+    put:
+      tags:
+      - Safety
+      summary: Upsert & update emergency contact
+      operationId: upsertEmergencyContactNoAuth
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EmergencyContactUpsert'
+      responses:
+        '200':
+          description: Saved
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseEmergencyContact'
+        '422':
+          $ref: '#/components/responses/HTTPValidationError'
+
+  /users/me/checkin-reminder:
+    get:
+      tags:
+      - Safety
+      summary: Get check-in reminder settings (demo no-auth)
+      operationId: getCheckinReminderNoAuth
+      security: []
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseCheckinReminder'
+    put:
+      tags:
+      - Safety
+      summary: Update check-in reminder settings (demo no-auth)
+      operationId: updateCheckinReminderNoAuth
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CheckinReminderUpdate'
+      responses:
+        '200':
+          description: Saved
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseCheckinReminder'
+        '422':
+          $ref: '#/components/responses/HTTPValidationError'
+
+  /users/me/miss-checkin-rule:
+    get:
+      tags:
+      - Safety
+      summary: Get miss check-in rule (demo no-auth)
+      operationId: getMissCheckinRuleNoAuth
+      security: []
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseMissCheckinRule'
+    put:
+      tags:
+      - Safety
+      summary: Update miss check-in rule (demo no-auth)
+      operationId: updateMissCheckinRuleNoAuth
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MissCheckinRuleUpdate'
+      responses:
+        '200':
+          description: Saved
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseMissCheckinRule'
+        '422':
+          $ref: '#/components/responses/HTTPValidationError'
+
+  /users/me/pause-checkin:
+    get:
+      tags:
+      - Safety
+      summary: Get pause status (demo no-auth)
+      operationId: getPauseStatusNoAuth
+      security: []
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponsePauseStatus'
+    post:
+      tags:
+      - Safety
+      summary: Set pause status (demo no-auth)
+      operationId: setPauseStatusNoAuth
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PauseStatusUpdate'
+      responses:
+        '200':
+          description: Saved
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponsePauseStatus'
+        '422':
+          $ref: '#/components/responses/HTTPValidationError'
+
+
+  # ===========================
+  # Insights
+  # ===========================
+  /insights/warm-messages:
+    post:
+      tags: [Insights]
+      summary: Generate warm messages from a single user text
+      operationId: generateWarmMessages
+      security: []   # demo no-auth; remove if you later add auth
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/WarmMessagesRequest'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AIWarmMessageLists'
+        '400':
+          description: Invalid input
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseMessage'
+        '502':
+          description: AI provider error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseMessage'
+  # ===========================
+  # Checkins
+  # ===========================
+  /checkins:
+    post:
+      tags:
+      - Checkins
+      summary: Create today's check-in (tap-only, demo no-auth)
+      operationId: createCheckinNoAuth
+      security: []
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseCheckinStatus'
+        '409':
+          description: Paused or already checked-in today
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseMessage'
+        '422':
+          $ref: '#/components/responses/HTTPValidationError'
+      description: 'Mark today''s check-in as done. No mood/journal required.
+
+
+        - Idempotent: calling again returns the existing record.
+
+        - If paused, returns 409.
+
+        '
+  /checkins/today:
+    get:
+      tags:
+      - Checkins
+      summary: Get today's check-in status
+      operationId: getTodayCheckinNoAuth
+      security: []
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseCheckinStatus'
+        '404':
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseMessage'
+
+  # ===========================
+  # Internal
+  # ===========================
+  /internal/run-miss-checkin-scan:
+    post:
+      tags:
+      - Internal
+      summary: Manually scan miss check-in and send emergency email via SMTP (Mailpit/MailHog)
+      operationId: runMissCheckinScanNoAuth
+      security: []
+      responses:
+        '200':
+          description: Scan completed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseMissScanResult'
+
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: |
+        JWT Bearer Authentication (Access Token)
+
+        Format: Authorization: Bearer {access_token}
+        Access Token Expiry: 1 hour (3600 seconds)
+
+  parameters:
+    UserTimezoneHeader:
+      name: X-User-Timezone
+      in: header
+      required: false
+      description: |
+        User's current timezone (IANA identifier).
+    
+        **Auto-Update**
+        - Client detects timezone change on app launch (Must call GET/users/me with this header)
+        - Marks as pending if different
+        - Next request includes this header
+        - Server auto-updates user.timezone
+        - Subsequent requests omit header (already updated)
+        
+        **Behavior:**
+        - If provided and different → update user.timezone
+        - If not provided → use stored user.timezone
+        - Defaults to UTC if neither exists
+        
+        **Priority:** Header > user.timezone(user profile) > UTC
+      schema:
+        type: string
+      example: America/New_York
+
+  schemas:
+    # -------------------------
+    # Standard API Response Wrappers
+    # -------------------------
+    ApiResponseAuth:
+      type: object
+      additionalProperties: false
+      properties:
+        data:
+          $ref: '#/components/schemas/AuthResponse'
+        message:
+          type: string
+          example: "OK"
+      required: [data, message]
+
+    # -------------------------
+    # Auth Schemas
+    # -------------------------
+    UserRegister:
+      type: object
+      additionalProperties: false
+      required: [email, password]
+      properties:
+        email:
+          type: string
+          format: email
+          maxLength: 255
+          description: User's email address
+          example: student@example.com
+        password:
+          type: string
+          format: password
+          minLength: 8
+          maxLength: 128
+          description: Password (min 8 chars, must include letters and numbers)
+          example: SecurePass123!
+        username:
+          type: string
+          maxLength: 100
+          nullable: true
+          description: User's display name
+          example: John Doe
+        timezone:
+          type: string
+          nullable: true
+          description: |
+            Optional user timezone (IANA identifier). If omitted, backend may default to UTC or infer later.
+            Recommended: do not require this at MVP unless you have "by local day" features implemented.
+          example: America/New_York
+
+    UserLogin:
+      type: object
+      additionalProperties: false
+      required: [email, password]
+      properties:
+        email:
+          type: string
+          format: email
+          example: student@example.com
+        password:
+          type: string
+          format: password
+          example: SecurePass123!
+        device_name:
+          type: string
+          nullable: true
+          description: Friendly device label for session metadata (recommended for future multi-device).
+          example: iPhone 16
+        device_id:
+          type: string
+          nullable: true
+          description: Optional stable device identifier.
+          example: device_9b2f3c
+
+    AuthResponse:
+      description: Authentication response with tokens and user profile.
+      allOf:
+        - $ref: '#/components/schemas/TokenPair'
+        - type: object
+          additionalProperties: false
+          properties:
+            user:
+              $ref: '#/components/schemas/UserProfile'
+          required: [user]
+
+    TokenPair:
+      type: object
+      additionalProperties: false
+      required:
+        - access_token
+        - token_type
+        - expires_in
+        - refresh_token
+        - refresh_expires_in
+      properties:
+        access_token:
+          type: string
+          description: JWT access token (short-lived).
+          example: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+        token_type:
+          type: string
+          description: Token type for Authorization header.
+          enum: ["Bearer"]
+          example: "Bearer"
+        expires_in:
+          type: integer
+          description: Access token lifetime in seconds.
+          example: 3600
+        refresh_token:
+          type: string
+          description: Refresh token (treat as opaque). Stored securely by client.
+          example: "rft_0b1f4c6a8e9d..."
+        refresh_expires_in:
+          type: integer
+          description: Refresh token lifetime in seconds.
+          example: 2592000
+        session_id:
+          type: string
+          nullable: true
+          description: Session identifier (for future multi-device support).
+          example: "sess_7c1a2b3c4d"
+
+    RefreshTokenRequest:
+      type: object
+      additionalProperties: false
+      required: [refresh_token]
+      properties:
+        refresh_token:
+          type: string
+          description: Refresh token previously issued (opaque).
+          example: "rft_0b1f4c6a8e9d..."
+        session_id:
+          type: string
+          nullable: true
+          description: Session id associated with the refresh token.
+          example: "sess_7c1a2b3c4d"
+
+    LogoutRequest:
+      type: object
+      additionalProperties: false
+      required: []
+      properties:
+        session_id:
+          type: string
+          nullable: true
+          example: "sess_7c1a2b3c4d"
+
+    # -------------------------
+    # Mood Schemas
+    # -------------------------
+    MoodCreateRequest:
+      type: object
+      required: [score]
+      properties:
+        score:
+          type: integer
+          minimum: 1
+          maximum: 8
+          example: 6
+
+    MoodRecord:
+      type: object
+      required: [mood_id, local_date, score, occurred_at_utc, created_at]
+      properties:
+        mood_id:
+          type: string
+          format: uuid
+          example: "a1b2c3d4-e5f6-4321-8765-123456789abc"
+        local_date:
+          type: string
+          format: date
+          description: Local calendar date at recording time
+          example: "2026-01-23"
+        score:
+          type: integer
+          minimum: 1
+          maximum: 8
+        occurred_at_utc:
+          type: string
+          format: date-time
+          example: "2026-01-23T22:10:00Z"
+        timezone_used:
+          type: string
+          nullable: true
+          example: "America/New_York"
+        created_at:
+          type: string
+          format: date-time
+
+    MoodRecordList:
+      type: object
+      required: [items, count]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/MoodRecord'
+        count:
+          type: integer
+          example: 2
+
+    ApiResponseMood:
+      type: object
+      required: [data, message]
+      properties:
+        data:
+          $ref: '#/components/schemas/MoodRecord'
+        message:
+          type: string
+          example: "OK"
+
+    ApiResponseMoodList:
+      type: object
+      required: [data, message]
+      properties:
+        data:
+          $ref: '#/components/schemas/MoodRecordList'
+        message:
+          type: string
+          example: "OK"
+
+    # -------------------------
+    # Idea Schemas
+    # -------------------------
+
+    JournalCreateRequest:
+      type: object
+      additionalProperties: false
+      required: [content]
+      properties:
+        content:
+          type: string
+          minLength: 1
+          maxLength: 2000
+          description: Journal content (free text).
+          example: "Try a 5-minute gratitude note before sleep."
+        title:
+          type: string
+          nullable: true
+          maxLength: 120
+          description: Optional short title (future-friendly).
+          example: "Gratitude habit"
+
+    JournalRecord:
+      type: object
+      additionalProperties: false
+      required: [journal_id, local_date, content, occurred_at_utc, created_at]
+      properties:
+        journal_id:
+          type: string
+          format: uuid
+          example: "b2c3d4e5-f6a7-4321-9876-234567890def"
+        local_date:
+          type: string
+          format: date
+          description: Local calendar date computed at creation time.
+          example: "2026-01-23"
+        title:
+          type: string
+          nullable: true
+          maxLength: 120
+          example: "Gratitude habit"
+        content:
+          type: string
+          maxLength: 2000
+          example: "Try a 5-minute gratitude note before sleep."
+        occurred_at_utc:
+          type: string
+          format: date-time
+          description: Event timestamp stored in UTC.
+          example: "2026-01-23T22:10:00Z"
+        timezone_used:
+          type: string
+          nullable: true
+          description: Timezone used to compute local_date.
+          example: "America/New_York"
+        created_at:
+          type: string
+          format: date-time
+          example: "2026-01-23T22:10:00Z"
+
+    JournalWithWarmMessage:
+      allOf:
+        - $ref: '#/components/schemas/JournalRecord'
+        - type: object
+          properties:
+            warm_message:
+              allOf:
+                - $ref: '#/components/schemas/AIWarmMessageLists'
+              nullable: true
+              description: |
+                Warm message generated by AI. 
+                Will be null if AI generation failed.
+
+    JournalRecordList:
+      type: object
+      additionalProperties: false
+      required: [items, count]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/JournalRecord'
+        count:
+          type: integer
+          example: 2
+        next_cursor:
+          type: string
+          nullable: true
+          description: Optional cursor for pagination (future).
+          example: null
+
+    ApiResponseJournal:
+      type: object
+      additionalProperties: false
+      required: [data, message]
+      properties:
+        data:
+          $ref: '#/components/schemas/JournalRecord'
+        message:
+          type: string
+          example: "OK"
+
+    ApiResponseJournalList:
+      type: object
+      additionalProperties: false
+      required: [data, message]
+      properties:
+        data:
+          $ref: '#/components/schemas/JournalRecordList'
+        message:
+          type: string
+          example: "OK"
+
+    ApiResponseJournalWithWarmMessage:
+      type: object
+      additionalProperties: false
+      required:
+        - data
+        - message
+      properties:
+        data:
+          $ref: '#/components/schemas/JournalWithWarmMessage'
+        message:
+          type: string
+          example: "OK"
+
+    # -------------------------
+    # User Schemas
+    # -------------------------
+    UserProfile:
+      type: object
+      additionalProperties: false
+      required: [user_id, email, created_at]
+      properties:
+        user_id:
+          type: string
+          example: "550e8400-e29b-41d4-a716-446655440000"
+        email:
+          type: string
+          format: email
+          example: "student@example.com"
+        username:
+          type: string
+          nullable: true
+          example: "John Doe"
+        timezone:
+          type: string
+          nullable: true
+          description: Optional timezone preference (IANA identifier).
+          example: "America/New_York"
+        created_at:
+          type: string
+          format: date-time
+          description: Account creation time (UTC).
+          example: "2026-01-23T20:30:00Z"
+        avatar_url:
+          type: string
+          format: uri
+          nullable: true
+          description: |
+            User avatar image URL.
+            MVP: client updates this field after uploading the image to a storage/CDN.
+          example: "https://cdn.example.com/avatars/usr_12345.jpg"
+
+        # ---- Future-ready fields
+        last_login_at:
+          type: string
+          format: date-time
+          nullable: true
+          description: |
+            [FUTURE] Last login timestamp.
+            Currently may return null or omitted in MVP.
+          example: null
+
+        active_devices_count:
+          type: integer
+          nullable: true
+          description: |
+            [FUTURE] Number of active sessions/devices.
+            Currently returns null or omitted.
+          example: null
+
+    UserProfileUpdateRequest:
+      type: object
+      additionalProperties: false
+      description: Fields are optional; only provided fields will be updated.
+      properties:
+        username:
+          type: string
+          nullable: true
+          maxLength: 100
+          example: "John Doe"
+        timezone:
+          type: string
+          nullable: true
+          description: User's preferred timezone (IANA identifier).
+          example: "America/New_York"
+        avatar_url:
+          type: string
+          format: uri
+          nullable: true
+          description: |
+            Avatar image URL. Set to null to remove avatar.
+            MVP: upload is handled outside this API; this endpoint only stores the URL.
+          example: "https://cdn.example.com/avatars/usr_12345.jpg"
+
+    ApiResponseUserProfile:
+      type: object
+      additionalProperties: false
+      required: [data, message]
+      properties:
+        data:
+          $ref: '#/components/schemas/UserProfile'
+        message:
+          type: string
+          example: "OK"
+
+    EmergencyContact:
+      type: object
+      properties:
+        contact_id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        email:
+          type: string
+          format: email
+        relationship:
+          type: string
+          nullable: true
+      required:
+      - contact_id
+      - name
+      - email
+    EmergencyContactUpsert:
+      type: object
+      properties:
+        name:
+          type: string
+        email:
+          type: string
+          format: email
+        relationship:
+          type: string
+          nullable: true
+      required:
+      - name
+      - email
+    ApiResponseEmergencyContact:
+      type: object
+      properties:
+        data:
+          oneOf:
+          - $ref: '#/components/schemas/EmergencyContact'
+        message:
+          type: string
+      required:
+      - data
+      - message
+    
+    CheckinReminder:
+      type: object
+      properties:
+        enabled:
+          type: boolean
+        time_local:
+          type: string
+          description: HH:MM in user's local time (24-hour)
+          example: 09:00
+        frequency_type:
+          type: string
+          enum:
+          - daily
+          - every_n_days
+        interval_days:
+          type: integer
+          minimum: 2
+          nullable: true
+          description: Required when frequency_type=every_n_days (>=2)
+      required:
+      - enabled
+      - time_local
+      - frequency_type
+    CheckinReminderUpdate:
+      allOf:
+      - $ref: '#/components/schemas/CheckinReminder'
+    ApiResponseCheckinReminder:
+      type: object
+      properties:
+        data:
+          $ref: '#/components/schemas/CheckinReminder'
+        message:
+          type: string
+      required:
+      - data
+      - message
+    MissCheckinRule:
+      type: object
+      properties:
+        threshold_days:
+          type: integer
+          minimum: 1
+        message_template:
+          type: string
+          description: Supports {user_name}, {last_checkin_date}, {days_missed}
+      required:
+      - threshold_days
+      - message_template
+    MissCheckinRuleUpdate:
+      allOf:
+      - $ref: '#/components/schemas/MissCheckinRule'
+    ApiResponseMissCheckinRule:
+      type: object
+      properties:
+        data:
+          $ref: '#/components/schemas/MissCheckinRule'
+        message:
+          type: string
+      required:
+      - data
+      - message
+    PauseStatus:
+      type: object
+      properties:
+        paused:
+          type: boolean
+        paused_at:
+          type: string
+          format: date-time
+          nullable: true
+      required:
+      - paused
+    PauseStatusUpdate:
+      type: object
+      properties:
+        paused:
+          type: boolean
+      required:
+      - paused
+    ApiResponsePauseStatus:
+      type: object
+      properties:
+        data:
+          $ref: '#/components/schemas/PauseStatus'
+        message:
+          type: string
+      required:
+      - data
+      - message
+      
+    # -------------------------
+    # Insights Schemas
+    # -------------------------
+    WarmMessagesRequest:
+      type: object
+      properties:
+        text:
+          type: string
+          description: "User-provided text (typically from GET /journals/random). English only."
+          minLength: 1
+          maxLength: 2000
+      required: [text]
+
+    AIWarmMessage:
+      type: object
+      additionalProperties: false
+      required:
+        - warm_message
+        - tags
+      properties:
+        warm_message:
+          type: string
+          maxLength: 200
+          description: |
+            Format: <one supportive sentence>. <very short suggestion phrase>.
+            Example: "That sounds meaningful. Take a moment to appreciate this."
+          example: "That sounds like meaningful progress. Take a moment to appreciate this step forward."
+        tags:
+          type: array
+          maxItems: 3
+          items:
+            type: string
+            enum:
+              - empathy
+              - encouragement
+              - calm
+              - proud
+              - grounding
+              - support
+              - hope
+          example:
+            - empathy
+            - encouragement
+    
+    AIWarmMessageLists:
+      type: object
+      additionalProperties: false
+      required:
+        - message_id
+        - alternatives
+        - generated_at
+      properties:
+        message_id:
+          type: string
+          format: uuid
+          description: Unique identifier for this warm message record
+          example: "c3d4e5f6-a7b8-5432-9876-345678901abc"
+        alternatives:
+          type: array
+          minItems: 3
+          maxItems: 3
+          items:
+            $ref: '#/components/schemas/AIWarmMessage'
+          description: Exactly 3 alternative warm messages generated by AI
+        generated_at:
+          type: string
+          format: date-time
+          description: When the AI message was first generated (cached timestamp)
+          example: "2026-02-05T10:30:00Z"
+
+    # -------------------------
+    # Checkin Schemas
+    # -------------------------
+    CheckinStatus:
+      type: object
+      properties:
+        checkin_id:
+          type: string
+          format: uuid
+        local_date:
+          type: string
+          format: date
+        checked_in_today:
+          type: boolean
+      required:
+      - local_date
+      - checked_in_today
+    ApiResponseCheckinStatus:
+      type: object
+      properties:
+        data:
+          $ref: '#/components/schemas/CheckinStatus'
+        message:
+          type: string
+      required:
+      - data
+      - message
+      
+    # -------------------------
+    # Internal Schemas
+    # -------------------------
+    MissScanResult:
+      type: object
+      properties:
+        paused:
+          type: boolean
+        last_checkin_date:
+          type: string
+          format: date
+          nullable: true
+        days_missed:
+          type: integer
+          minimum: 0
+        threshold_days:
+          type: integer
+          nullable: true
+        triggered:
+          type: boolean
+        email_sent_to:
+          type: string
+          format: email
+          nullable: true
+      required:
+      - paused
+      - days_missed
+      - triggered
+    ApiResponseMissScanResult:
+      type: object
+      properties:
+        data:
+          $ref: '#/components/schemas/MissScanResult'
+        message:
+          type: string
+      required:
+      - data
+      - message
+
+    # -------------------------
+    # Error Schemas
+    # -------------------------
+    Error:
+      type: object
+      additionalProperties: false
+      description: |
+        Standard error response format.
+      properties:
+        error:
+          type: object
+          additionalProperties: false
+          properties:
+            code:
+              type: string
+              description: Machine-readable error code
+              example: VALIDATION_ERROR
+            message:
+              type: string
+              description: Human-readable error message
+              example: Invalid input data
+            details:
+              type: object
+              nullable: true
+              description: Additional error details
+              additionalProperties: true
+          required: [code, message]
+        timestamp:
+          type: string
+          format: date-time
+          description: Error timestamp (UTC)
+          example: "2026-01-23T20:30:00Z"
+      required: [error, timestamp]
+    
+    ApiResponseMessage:
+      type: object
+      properties:
+        message:
+          type: string
+      required:
+      - message
+      
+  responses:
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error:
+              code: NOT_FOUND
+              message: Resource not found
+              details:
+                resource: mood
+                scope: today
+            timestamp: "2026-01-23T20:30:00Z"
+    BadRequest:
+      description: Bad request - Invalid parameters
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error:
+              code: BAD_REQUEST
+              message: Invalid request parameters
+            timestamp: "2026-01-23T20:30:00Z"
+
+    Unauthorized:
+      description: Unauthorized - Invalid or expired token
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error:
+              code: UNAUTHORIZED
+              message: Invalid or expired token
+            timestamp: "2026-01-23T20:30:00Z"
+
+    Conflict:
+      description: Conflict - Resource already exists
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error:
+              code: CONFLICT
+              message: Resource already exists
+            timestamp: "2026-01-23T20:30:00Z"
+
+    TooManyRequests:
+      description: Rate limit exceeded
+      headers:
+        Retry-After:
+          description: Seconds to wait before retrying.
+          schema:
+            type: integer
+            example: 3600
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error:
+              code: RATE_LIMITED
+              message: Too many requests. Please retry later.
+            timestamp: "2026-01-23T20:30:00Z"
+
+    HTTPValidationError:
+      description: Validation failed
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error:
+              code: VALIDATION_ERROR
+              message: Validation failed
+              details:
+                email: Invalid email format
+                password: Must be at least 8 characters
+            timestamp: "2026-01-23T20:30:00Z"

@@ -244,16 +244,16 @@ struct HomeView: View {
             }
             .ignoresSafeArea()
 
-            // "Gather a little light" button at bottom
+            // "Record another light" button at bottom
             VStack {
                 Spacer()
 
-                Button(action: catchGlimmer) {
+                Button(action: { showGlimmerInput = true }) {
                     HStack(alignment: .center, spacing: 8) {
                         Image("Sparkle4")
                             .resizable()
                             .frame(width: 18, height: 18)
-                        Text("Gather a little light")
+                        Text("Record another light")
                             .font(.custom("Urbanist", size: 14).weight(.medium))
                             .multilineTextAlignment(.center)
                             .foregroundColor(Color(red: 0.29, green: 0.29, blue: 0.29))
@@ -836,6 +836,7 @@ struct GlimmerOverlay: View {
                         .italic()
                         .multilineTextAlignment(.center)
                         .lineSpacing(4)
+                        .fixedSize(horizontal: false, vertical: true)
                         .padding(.top, 4)
 
                     // Tap to dismiss hint

@@ -402,7 +402,7 @@ struct GatherLightFlipCard: View {
             .padding(.top, 20)
             .padding(.bottom, 24)
         }
-        .frame(height: 218)
+        .frame(minHeight: 218)
         .background(
             RoundedRectangle(cornerRadius: 24)
                 .fill(Color.white)
@@ -463,6 +463,8 @@ struct GatherLightFlipCard: View {
                 .foregroundColor(themeBrown.opacity(0.6))
                 .italic()
                 .multilineTextAlignment(.center)
+                .lineLimit(nil)
+                .fixedSize(horizontal: false, vertical: true)
                 .padding(.horizontal, 20)
                 .padding(.top, 12)
                 .padding(.bottom, 16)
@@ -479,7 +481,7 @@ struct GatherLightFlipCard: View {
             }
             .padding(.bottom, 16)
         }
-        .frame(height: 218)
+        .frame(minHeight: 218)
         .background(
             RoundedRectangle(cornerRadius: 24)
                 .fill(Color.white)
@@ -1016,16 +1018,10 @@ struct MoodCalendarCard: View {
 
     var body: some View {
         VStack(spacing: 16) {
-            // Month stats
-            VStack(alignment: .leading, spacing: 8) {
-                Text("\(entryCount)/\(daysInMonth)")
-                    .font(.custom("Urbanist", size: 24).weight(.bold))
-                    .foregroundColor(gray80)
-
-                Text("Moods logged this month")
-                    .font(.custom("Urbanist", size: 16))
-                    .foregroundColor(gray80)
-            }
+            // Current date display
+            Text(today, format: .dateTime.month(.abbreviated).day())
+                .font(.custom("Urbanist", size: 24).weight(.bold))
+                .foregroundColor(gray80)
             .frame(maxWidth: .infinity, alignment: .leading)
 
             // Divider
