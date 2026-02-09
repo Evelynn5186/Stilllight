@@ -1,17 +1,17 @@
 {
   "images" : [
     {
-      "filename" : "EmojiPeaceful.png",
+      "filename" : "EmojiShy.png",
       "idiom" : "universal",
       "scale" : "1x"
     },
     {
-      "filename" : "EmojiPeaceful@2x.png",
+      "filename" : "EmojiShy@2x.png",
       "idiom" : "universal",
       "scale" : "2x"
     },
     {
-      "filename" : "EmojiPeaceful@3x.png",
+      "filename" : "EmojiShy@3x.png",
       "idiom" : "universal",
       "scale" : "3x"
     }
