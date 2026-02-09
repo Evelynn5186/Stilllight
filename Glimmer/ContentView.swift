@@ -411,16 +411,11 @@ struct GatherLightFlipCard: View {
 
     private var backCard: some View {
         VStack(spacing: 0) {
-            // Mood emoji with colored background (if mood exists)
+            // Mood emoji (no background needed)
             if let accomplishment = accomplishment, let mood = accomplishment.mood {
-                ZStack {
-                    Circle()
-                        .fill(mood.color)
-                        .frame(width: 50, height: 50)
-                    MoodEmojiView(mood: mood, size: 36)
-                }
-                .padding(.top, 16)
-                .padding(.bottom, 8)
+                MoodEmojiView(mood: mood, size: 50, style: .round)
+                    .padding(.top, 16)
+                    .padding(.bottom, 8)
             }
 
             // Blue inner card with glimmer content
@@ -449,9 +444,16 @@ struct GatherLightFlipCard: View {
             .padding(20)
             .frame(maxWidth: .infinity)
             .background(
-                RoundedRectangle(cornerRadius: 16)
-                    .fill(cardBlue)
+                LinearGradient(
+                    stops: [
+                        Gradient.Stop(color: Color(red: 0.84, green: 0.91, blue: 1), location: 0.00),
+                        Gradient.Stop(color: Color(red: 1, green: 0.98, blue: 0.93), location: 0.69),
+                    ],
+                    startPoint: UnitPoint(x: 0, y: 0.5),
+                    endPoint: UnitPoint(x: 1, y: 0.5)
+                )
             )
+            .cornerRadius(16)
             .padding(.horizontal, 16)
             .padding(.top, accomplishment?.mood == nil ? 16 : 0)
 
@@ -576,10 +578,8 @@ struct WeekStripView: View {
 
     private var weekDates: [Date] {
         let today = Date()
-        var components = calendar.dateComponents([.yearForWeekOfYear, .weekOfYear], from: today)
-        components.weekday = 2 // Monday
-        guard let monday = calendar.date(from: components) else { return [] }
-        return (0..<7).compactMap { calendar.date(byAdding: .day, value: $0, to: monday) }
+        // Show last 7 days with today at the end (rightmost position)
+        return (0..<7).compactMap { calendar.date(byAdding: .day, value: $0 - 6, to: today) }
     }
 
     private func entryForDate(_ date: Date) -> Accomplishment? {
@@ -612,7 +612,6 @@ struct WeekStripView: View {
         HStack(spacing: 0) {
             ForEach(weekDates, id: \.self) { date in
                 let isToday = calendar.isDateInToday(date)
-                let isFuture = date > Date() && !isToday
                 let hasLog = hasEntry(on: date)
                 let dayNum = calendar.component(.day, from: date)
                 let selected = isSelected(date)
@@ -639,12 +638,11 @@ struct WeekStripView: View {
                             Capsule()
                                 .fill(selected ? themeBrown : Color.white)
                                 .overlay(
-                                    !selected && !isFuture
+                                    !selected
                                         ? Capsule().stroke(Color(red: 0.839, green: 0.827, blue: 0.820), lineWidth: 1)
                                         : nil
                                 )
                         )
-                        .opacity(isFuture ? 0.5 : 1.0)
 
                         // Mood indicator
                         if hasLog {
@@ -662,7 +660,7 @@ struct WeekStripView: View {
                     }
                 }
                 .buttonStyle(.plain)
-                .disabled(isFuture || !hasLog)
+                .disabled(!hasLog)
                 .frame(maxWidth: .infinity)
             }
         }
@@ -714,14 +712,9 @@ struct TodayMoodCard: View {
                     .font(.custom("Urbanist", size: 24).weight(.medium))
                     .foregroundColor(themeBrown)
 
-                // Mood emoji with colored background
-                ZStack {
-                    Circle()
-                        .fill(mood.color)
-                        .frame(width: 80, height: 80)
-                    MoodEmojiView(mood: mood, size: 60)
-                }
-                .frame(width: 130, height: 120)
+                // Character emoji (no background needed)
+                MoodEmojiView(mood: mood, size: 80, style: .character)
+                    .frame(width: 130, height: 120)
 
                 // Entry text in Baskerville (per Figma)
                 Text("\u{201C}" + entry.text + "\u{201D}")
@@ -789,13 +782,8 @@ struct SelectedDayMoodCard: View {
                 // Mood section (if mood exists)
                 if let mood = selectedMood {
                     HStack(spacing: 12) {
-                        // Mood emoji with colored background
-                        ZStack {
-                            Circle()
-                                .fill(mood.color)
-                                .frame(width: 50, height: 50)
-                            MoodEmojiView(mood: mood, size: 36)
-                        }
+                        // Character emoji (no background needed)
+                        MoodEmojiView(mood: mood, size: 50, style: .character)
 
                         VStack(alignment: .leading, spacing: 2) {
                             Text(mood.rawValue)
@@ -1087,17 +1075,13 @@ struct MoodCalendarCard: View {
                                             }
                                         }) {
                                             if let mood = moodForDay(day) {
-                                                ZStack {
-                                                    Circle()
-                                                        .fill(mood.color)
-                                                        .frame(width: 28, height: 28)
-                                                    MoodEmojiView(mood: mood, size: 20)
-                                                }
-                                                .overlay(
-                                                    isToday ? Circle().stroke(gray60, style: StrokeStyle(lineWidth: 1, dash: [3, 2])).frame(width: 32, height: 32) : nil
-                                                )
+                                                // Has mood - show emoji directly (no background)
+                                                MoodEmojiView(mood: mood, size: 28)
+                                                    .overlay(
+                                                        isToday ? Circle().stroke(gray60, style: StrokeStyle(lineWidth: 1, dash: [3, 2])).frame(width: 32, height: 32) : nil
+                                                    )
                                             } else {
-                                                // No mood selected - pure light warm circle
+                                                // Has entry but no mood - show yellow circle
                                                 Circle()
                                                     .fill(Color(red: 0.98, green: 0.93, blue: 0.76))
                                                     .frame(width: 28, height: 28)
@@ -1164,14 +1148,9 @@ struct CalendarEntryPopup: View {
 
             // Entry card
             VStack(spacing: 12) {
-                // Mood emoji if available
+                // Character emoji (no background needed)
                 if let mood = entry.mood {
-                    ZStack {
-                        Circle()
-                            .fill(mood.color)
-                            .frame(width: 50, height: 50)
-                        MoodEmojiView(mood: mood, size: 36)
-                    }
+                    MoodEmojiView(mood: mood, size: 50, style: .character)
                 }
 
                 // Entry text

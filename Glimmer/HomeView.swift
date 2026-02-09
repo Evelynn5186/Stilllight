@@ -51,6 +51,17 @@ struct HomeView: View {
                     endPoint: UnitPoint(x: 0.95, y: 1)
                 )
                 .ignoresSafeArea()
+            } else if hasCheckedInToday || showGlimmerInput {
+                // Warm cream/yellow gradient for checked-in and input mode
+                LinearGradient(
+                    stops: [
+                        .init(color: Color(red: 0.96, green: 0.9, blue: 0.75), location: 0.00),
+                        .init(color: Color(red: 0.95, green: 0.87, blue: 0.64), location: 0.71),
+                    ],
+                    startPoint: UnitPoint(x: 0.5, y: 0.32),
+                    endPoint: UnitPoint(x: 0.5, y: 1)
+                )
+                .ignoresSafeArea()
             } else if isLongtimeNoVisit {
                 // Longtime no visit: dark blue-purple gradient
                 LinearGradient(
@@ -62,17 +73,6 @@ struct HomeView: View {
                     ],
                     startPoint: .top,
                     endPoint: .bottom
-                )
-                .ignoresSafeArea()
-            } else if hasCheckedInToday || showGlimmerInput {
-                // Warm cream/yellow gradient for checked-in and input mode
-                LinearGradient(
-                    stops: [
-                        .init(color: Color(red: 0.96, green: 0.9, blue: 0.75), location: 0.00),
-                        .init(color: Color(red: 0.95, green: 0.87, blue: 0.64), location: 0.71),
-                    ],
-                    startPoint: UnitPoint(x: 0.5, y: 0.32),
-                    endPoint: UnitPoint(x: 0.5, y: 1)
                 )
                 .ignoresSafeArea()
             } else {
@@ -566,17 +566,13 @@ struct HomeView: View {
             }
         }) {
             VStack(spacing: 4) {
-                ZStack {
-                    Circle()
-                        .fill(selectedMood == mood ? mood.color : mood.color.opacity(0.3))
-                        .frame(width: 30, height: 30)
-                    MoodEmojiView(mood: mood, size: 26)
-                }
-                .overlay(
-                    selectedMood == mood
-                        ? Circle().stroke(themeBrown, lineWidth: 2).frame(width: 34, height: 34)
-                        : nil
-                )
+                MoodEmojiView(mood: mood, size: 30)
+                    .opacity(selectedMood == mood ? 1.0 : 0.5)
+                    .overlay(
+                        selectedMood == mood
+                            ? Circle().stroke(themeBrown, lineWidth: 2).frame(width: 34, height: 34)
+                            : nil
+                    )
                 Text(mood.rawValue)
                     .font(.custom("Urbanist", size: 8))
                     .foregroundColor(themeBrown.opacity(0.8))
@@ -807,15 +803,10 @@ struct GlimmerOverlay: View {
                     .padding(.bottom, 4)
 
                 if let accomplishment = accomplishment {
-                    // Mood emoji with colored background (if mood exists)
+                    // Character emoji (no background needed)
                     if let mood = accomplishment.mood {
-                        ZStack {
-                            Circle()
-                                .fill(mood.color)
-                                .frame(width: 60, height: 60)
-                            MoodEmojiView(mood: mood, size: 44)
-                        }
-                        .padding(.bottom, 4)
+                        MoodEmojiView(mood: mood, size: 60, style: .character)
+                            .padding(.bottom, 4)
                     }
 
                     // Journal content in blue card

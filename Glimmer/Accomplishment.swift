@@ -22,7 +22,7 @@ enum Mood: String, Codable, CaseIterable {
     case down = "Down"             // 14 - blue, sad sideways
     case numb = "Numb"             // 15 - light purple, expressionless
 
-    /// Asset image name for moods
+    /// Asset image name for round emojis (used in calendar, mood picker, etc.)
     var imageName: String {
         switch self {
         case .happy: return "EmojiHappy"
@@ -40,6 +40,27 @@ enum Mood: String, Codable, CaseIterable {
         case .dizzy: return "EmojiDizzy"
         case .down: return "EmojiDown"
         case .numb: return "EmojiNumb"
+        }
+    }
+
+    /// Asset image name for bean character emojis (used in journal entries, details, etc.)
+    var charaImageName: String {
+        switch self {
+        case .happy: return "CharaEmojiHappy"
+        case .joyful: return "CharaEmojiJoyful"
+        case .shy: return "CharaEmojiShy"
+        case .peaceful: return "CharaEmojiPeaceful"
+        case .calm: return "CharaEmojiCalm"
+        case .neutral: return "CharaEmojiNeutral"
+        case .sad: return "CharaEmojiSad"
+        case .worried: return "CharaEmojiWorried"
+        case .annoyed: return "CharaEmojiAnnoyed"
+        case .angry: return "CharaEmojiAngry"
+        case .furious: return "CharaEmojiFurious"
+        case .tired: return "CharaEmojiTired"
+        case .dizzy: return "CharaEmojiDizzy"
+        case .down: return "CharaEmojiDown"
+        case .numb: return "CharaEmojiNumb"
         }
     }
 
@@ -141,12 +162,18 @@ enum Mood: String, Codable, CaseIterable {
 
 // MARK: - Mood Emoji View
 
+enum MoodEmojiStyle {
+    case round      // Circle emojis (for calendar, mood picker)
+    case character  // Bean character emojis (for journal entries, details)
+}
+
 struct MoodEmojiView: View {
     let mood: Mood
     var size: CGFloat = 30
+    var style: MoodEmojiStyle = .round
 
     var body: some View {
-        Image(mood.imageName)
+        Image(style == .round ? mood.imageName : mood.charaImageName)
             .resizable()
             .scaledToFit()
             .frame(width: size, height: size)

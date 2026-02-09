@@ -1,5 +1,6 @@
 import SwiftUI
 import Speech
+import UIKit
 
 struct GlimmerInputView: View {
     let onSave: (String, Mood?) -> Void
@@ -296,17 +297,13 @@ struct GlimmerInputView: View {
             }
         }) {
             VStack(spacing: 4) {
-                ZStack {
-                    Circle()
-                        .fill(selectedMood == mood ? mood.color : mood.color.opacity(0.3))
-                        .frame(width: 36, height: 36)
-                    MoodEmojiView(mood: mood, size: 30)
-                }
-                .overlay(
-                    selectedMood == mood
-                        ? Circle().stroke(themeBrown, lineWidth: 2).frame(width: 40, height: 40)
-                        : nil
-                )
+                MoodEmojiView(mood: mood, size: 36)
+                    .opacity(selectedMood == mood ? 1.0 : 0.5)
+                    .overlay(
+                        selectedMood == mood
+                            ? Circle().stroke(themeBrown, lineWidth: 2).frame(width: 40, height: 40)
+                            : nil
+                    )
                 Text(mood.rawValue)
                     .font(.custom("Urbanist", size: 8))
                     .foregroundColor(themeBrown.opacity(0.8))
