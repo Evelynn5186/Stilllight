@@ -51,8 +51,19 @@ struct HomeView: View {
                     endPoint: UnitPoint(x: 0.95, y: 1)
                 )
                 .ignoresSafeArea()
-            } else if hasCheckedInToday || showGlimmerInput {
-                // Warm cream/yellow gradient for checked-in and input mode
+            } else if showGlimmerInput {
+                // Input mode: warm cream gradient
+                LinearGradient(
+                    stops: [
+                        .init(color: Color(red: 0.98, green: 0.93, blue: 0.76), location: 0.00),
+                        .init(color: Color(red: 0.98, green: 0.93, blue: 0.76), location: 0.71),
+                    ],
+                    startPoint: UnitPoint(x: 0.5, y: 0.32),
+                    endPoint: UnitPoint(x: 0.5, y: 1)
+                )
+                .ignoresSafeArea()
+            } else if hasCheckedInToday {
+                // Checked-in mode: warm cream/yellow gradient
                 LinearGradient(
                     stops: [
                         .init(color: Color(red: 0.96, green: 0.9, blue: 0.75), location: 0.00),
